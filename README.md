@@ -12,7 +12,7 @@ Press `Ctrl + Alt + F` at the location where you want to insert the note:
 If some text is selected when you press the hotkeys to insert the note, the text is automatically copied into the note.
 
 ### Delete a footnote
-Select, in the main text, the number of the note __and__ the brackets (e.g. `(3)`, the selection can be overflowing without problem, but it must contain at most one note number), then press `Ctrl + Alt + F`:
+Select, in the main text, the number of the note (the selection can be overflowing without problem, but it must contain at most one note number), then press `Ctrl + Alt + F`:
   - the note block will be deleted,
   - if there was some content in the note block, it will be inserted in the text body, in place of the alias,
   - all following notes on the page are automatically renumbered.
