@@ -3,6 +3,7 @@ import {
   getAnyBlockUidInCurrentPage,
   getPageTreeFromAnyBlockUid,
   getBlockUidOnPageByExactText,
+  getTreeByUid,
 } from "./utils";
 import getPageTitleByBlockUid from "roamjs-components/queries/getPageTitleByBlockUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
@@ -44,7 +45,7 @@ function onKeyDown(e) {
     if (startUid != undefined) {
       if (currentPos.hasSelection()) {
         let content = getBlockContent(startUid);
-        let selection = content.slice(currentPos.s, currentPos.e);
+        let selection = content.slice(currentPos.s - 2, currentPos.e + 2);
         let noteIndex = getNoteIndex(selection);
         if (noteIndex != null) {
           removeFootNote(startUid, noteIndex);
@@ -250,6 +251,13 @@ function reorderNotesInBlock(uid, content, notes) {
 
 function reorderFootNoteBlock(uid) {
   //console.log(footNotesUidArray);
+  let currentNotes = getTreeByUid(uid)[0].children;
+  if (currentNotes) {
+    for (let i = 0; i < currentNotes.length; i++) {
+      if (footNotesUidArray.includes(currentNotes[i].uid) === false)
+        footNotesUidArray.push(currentNotes[i].uid);
+    }
+  }
   roamAlphaAPI.data.block.reorderBlocks({
     location: { "parent-uid": uid },
     blocks: footNotesUidArray,
