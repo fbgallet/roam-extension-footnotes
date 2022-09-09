@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "roamjs-components": "^0.73.9",
     "roamjs-scripts": "^0.21.11"
   }
 }
