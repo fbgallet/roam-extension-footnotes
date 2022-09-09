@@ -6,15 +6,15 @@
 
 ### Insert a footnote
 Press `Ctrl + Alt + F` at the location where you want to insert the note: 
-  - a new block will be created, under the header #footnotes (customizable) or will open in the sidebar, to enter the note,
+  - a new block is created, under the header #footnotes (customizable) and opened in the sidebar, to enter the note,
   - a numbered alias is inserted, in superscript (by default),
-  - all following notes on the page are automatically renumbered
-If some text is selected when you press the hotkeys to insert the note, the text is automatically copied into the note
+  - all following notes on the page are automatically renumbered.
+If some text is selected when you press the hotkeys to insert the note, the text is automatically copied into the note.
 
 ### Delete a footnote
-Select, in the body of the text, the number of the note and the brackets (e.g. (3), the selection can be overflowing without problem, but it must contain at most one note), then press `Ctrl + Alt + F`:
+Select, in the main text, the number of the note __and__ the brackets (e.g. `(3)`, the selection can be overflowing without problem, but it must contain at most one note number), then press `Ctrl + Alt + F`:
   - the note block will be deleted,
-  - if there was some content in the note block, it will be inserted in the text body,
+  - if there was some content in the note block, it will be inserted in the text body, in place of the alias,
   - all following notes on the page are automatically renumbered.
 
 ### Reorder / Renumber footnotes
