@@ -46,24 +46,24 @@ function onKeyDown(e) {
     e.key.toLowerCase() == "f"
   ) {
     currentPos = new position();
-    insertOrRemoveFootnote();
+    let startUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+    insertOrRemoveFootnote(startUid);
     e.preventDefault();
   }
 }
 
-function insertOrRemoveFootnote() {
-  let startUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-  if (startUid != undefined) {
+function insertOrRemoveFootnote(uid) {
+  if (uid != undefined) {
     if (currentPos.hasSelection()) {
-      let content = getBlockContent(startUid);
+      let content = getBlockContent(uid);
       let selection = content.slice(currentPos.s - 2, currentPos.e + 2);
       let noteIndex = getNoteIndex(selection);
       if (noteIndex != null) {
-        removeFootNote(startUid, noteIndex);
+        removeFootNote(uid, noteIndex);
         return;
       }
     }
-    insertFootNote(startUid);
+    insertFootNote(uid);
   }
 }
 
@@ -407,14 +407,14 @@ export default {
     });
     document.addEventListener("keydown", onKeyDown);
 
-    /*    const insertCmd = {
+    const insertCmd = {
       text: "INSERTFOOTNOTE",
       help: "Insert automatically numbered footnote (requires the Footnotes extension)",
       handler: (context) => () => {
         currentPos = new position();
-        currentPos.s = currentPos.s - 5;
-        currentPos.e = currentPos.e - 5;
-        insertOrRemoveFootnote();
+        currentPos.s = context.currentContent.length;
+        currentPos.e = currentPos.s;
+        insertOrRemoveFootnote(context.targetUid);
         return "";
       },
     };
@@ -423,9 +423,9 @@ export default {
       help: "Delete numbered footnote (requires the Footnotes extension)",
       handler: (context) => () => {
         currentPos = new position();
-        currentPos.s = currentPos.s - 8;
-        currentPos.e = currentPos.e - 4;
-        insertOrRemoveFootnote();
+        currentPos.s = context.currentContent.length - 2;
+        currentPos.e = currentPos.s + 6;
+        insertOrRemoveFootnote(context.targetUid);
         return "";
       },
     };
@@ -439,7 +439,7 @@ export default {
         window.roamjs?.extension.smartblocks &&
           window.roamjs.extension.smartblocks.registerCommand(deleteCmd);
       });
-    }*/
+    }
 
     console.log("Footnotes loaded.");
     return;
