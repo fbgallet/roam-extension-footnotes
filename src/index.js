@@ -7,6 +7,7 @@ import {
 } from "./utils";
 import getPageTitleByBlockUid from "roamjs-components/queries/getPageTitleByBlockUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
+import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
 
 var footnotesTag;
 var footNotesUid;
@@ -283,7 +284,10 @@ function openNoteInSidebar(uid) {
 }
 
 function getFootNotesHeaderUid(pageTitle) {
-  let uid = getBlockUidOnPageByExactText(footnotesTag, pageTitle);
+  let uid = getBlockUidOnPageByExactText(
+    footnotesTag,
+    normalizePageTitle(pageTitle)
+  );
   if (uid === null) return createFootNotesHeader(pageTitle);
   else return uid;
 }

@@ -1,6 +1,5 @@
 export function getBlockContent(uid) {
   let result = window.roamAlphaAPI.pull("[:block/string]", [":block/uid", uid]);
-  console.log(result);
   if (result) return result[":block/string"];
   else return "";
 }
