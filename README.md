@@ -5,7 +5,7 @@
 ![image](https://user-images.githubusercontent.com/74436347/189387081-fbb7ef64-5fde-441b-97c4-0bc7bae3e520.png)
 
 ### Insert a footnote
-Press `Ctrl + Alt + F` at the location where you want to insert the note: 
+Press `Ctrl + Alt + F` (or Ctrl + Shift + F as an option) at the location where you want to insert the note: 
   - a new block is created, under the header #footnotes (customizable) and opened in the sidebar, to enter the note,
   - if some text is selected when you press the hotkeys to insert the note, the text is automatically copied into the note,
   - a numbered alias is inserted (in superscript as an option),
