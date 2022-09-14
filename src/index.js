@@ -15,6 +15,7 @@ var shift = 0;
 var footNotesUidArray = [];
 var isSup = true;
 var supArray = ["#sup^^", "^^"];
+var secondHotkey = "altKey";
 
 var position = function (elt = document.activeElement) {
   this.elt = elt;
@@ -39,21 +40,30 @@ var position = function (elt = document.activeElement) {
 var currentPos; // = new position();
 
 function onKeyDown(e) {
-  if ((e.ctrlKey || e.metaKey) && e.altKey && e.key == "f") {
+  if (
+    (e.ctrlKey || e.metaKey) &&
+    e[secondHotkey] &&
+    e.key.toLowerCase() == "f"
+  ) {
     currentPos = new position();
-    let startUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-    if (startUid != undefined) {
-      if (currentPos.hasSelection()) {
-        let content = getBlockContent(startUid);
-        let selection = content.slice(currentPos.s - 2, currentPos.e + 2);
-        let noteIndex = getNoteIndex(selection);
-        if (noteIndex != null) {
-          removeFootNote(startUid, noteIndex);
-          return;
-        }
+    insertOrRemoveFootnote();
+    e.preventDefault();
+  }
+}
+
+function insertOrRemoveFootnote() {
+  let startUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+  if (startUid != undefined) {
+    if (currentPos.hasSelection()) {
+      let content = getBlockContent(startUid);
+      let selection = content.slice(currentPos.s - 2, currentPos.e + 2);
+      let noteIndex = getNoteIndex(selection);
+      if (noteIndex != null) {
+        removeFootNote(startUid, noteIndex);
+        return;
       }
-      insertFootNote(startUid);
     }
+    insertFootNote(startUid);
   }
 }
 
@@ -102,8 +112,10 @@ function processNotesInTree(tree, triggerUid, callback, index = -1) {
 }
 
 function insertNoteInBlock(uid, content) {
-  let left = content.slice(0, currentPos.s);
-  let right = content.slice(currentPos.e);
+  let left,
+    right = "";
+  left = content.slice(0, currentPos.s);
+  right = content.slice(currentPos.e);
   let selection = "";
   if (currentPos.hasSelection())
     selection = content.slice(currentPos.s, currentPos.e);
@@ -132,7 +144,7 @@ function insertAliasInBlock(uid, left, right, nb, noteUid) {
 }
 
 function getNotesNumberInBlock(content) {
-  if (content.length === 0) return 0;
+  if (content.length === 0) return [];
   let regex = /\[\([0-9]*\)\]\(\(\(/g;
   let m = [...content.matchAll(regex)];
   return m;
@@ -319,6 +331,11 @@ function getBlocksIncludingText(t) {
   return l;
 }*/
 
+function getHotkeys(evt) {
+  if (evt === "Ctrl + Alt + F") return "altKey";
+  else return "shiftKey";
+}
+
 const panelConfig = {
   tabTitle: "Footnotes",
   settings: [
@@ -345,6 +362,18 @@ const panelConfig = {
         },
       },
     },
+    {
+      id: "hotkeys",
+      name: "Hotkeys",
+      description: "Hotkeys to insert/delete footnote",
+      action: {
+        type: "select",
+        items: ["Ctrl + Alt + F", "Ctrl + Shift + F"],
+        onChange: (evt) => {
+          secondHotkey = getHotkeys(evt);
+        },
+      },
+    },
   ],
 };
 
@@ -357,6 +386,9 @@ export default {
     if (extensionAPI.settings.get("supNotes") == null)
       extensionAPI.settings.set("supNotes", true);
     isSup = extensionAPI.settings.get("supNotes");
+    if (extensionAPI.settings.get("hotkeys") == null)
+      extensionAPI.settings.set("hotkeys", "Ctrl + Alt + F");
+    secondHotkey = getHotkeys(extensionAPI.settings.get("hotkeys"));
     /*   window.roamAlphaAPI.ui.commandPalette.addCommand({
       label: "Insert footnote",
       callback: () => {
@@ -374,23 +406,42 @@ export default {
       },
     });
     document.addEventListener("keydown", onKeyDown);
-    console.log("Footnotes loaded.");
-    /*    const cmd = {
-      text: "LISTSELECTOR",
-      help: "",
+
+    /*    const insertCmd = {
+      text: "INSERTFOOTNOTE",
+      help: "Insert automatically numbered footnote (requires the Footnotes extension)",
       handler: (context) => () => {
+        currentPos = new position();
+        currentPos.s = currentPos.s - 5;
+        currentPos.e = currentPos.e - 5;
+        insertOrRemoveFootnote();
         return "";
       },
     };
-    */
-    /*  if (window.roamjs?.extension?.smartblocks) {
-      window.roamjs.extension.smartblocks.registerCommand(listCmd);
+    const deleteCmd = {
+      text: "DELETEFOOTNOTE",
+      help: "Delete numbered footnote (requires the Footnotes extension)",
+      handler: (context) => () => {
+        currentPos = new position();
+        currentPos.s = currentPos.s - 8;
+        currentPos.e = currentPos.e - 4;
+        insertOrRemoveFootnote();
+        return "";
+      },
+    };
+    if (window.roamjs?.extension?.smartblocks) {
+      window.roamjs.extension.smartblocks.registerCommand(insertCmd);
+      window.roamjs.extension.smartblocks.registerCommand(deleteCmd);
     } else {
       document.body.addEventListener(`roamjs:smartblocks:loaded`, () => {
         window.roamjs?.extension.smartblocks &&
-          window.roamjs.extension.smartblocks.registerCommand(listCmd);
+          window.roamjs.extension.smartblocks.registerCommand(insertCmd);
+        window.roamjs?.extension.smartblocks &&
+          window.roamjs.extension.smartblocks.registerCommand(deleteCmd);
       });
-    } */
+    }*/
+
+    console.log("Footnotes loaded.");
     return;
   },
   onunload: () => {
