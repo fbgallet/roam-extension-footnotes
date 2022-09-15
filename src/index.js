@@ -195,14 +195,14 @@ function removeFootNote(startUid, index) {
 function removeFootNoteFromBlock(uid, content, noteIndex) {
   let leftSup = 0;
   let rightSup = 0;
-  if (isSup) {
-    leftSup = 6;
-    rightSup = 2;
-  }
   let nb;
   if (noteIndex != -1) nb = parseInt(noteIndex);
   else nb = nbInPage + 1;
   let index = content.indexOf("[(" + nb + ")]");
+  if (content.slice(index - 6, index) === "#sup^^") {
+    leftSup = 6;
+    rightSup = 2;
+  }
   let uidShift = index + nb.toString().length + 7;
   let noteUid = content.substr(uidShift, 9);
   let noteContent = getBlockContent(noteUid);
