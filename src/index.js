@@ -8,6 +8,13 @@ import {
 import getPageTitleByBlockUid from "roamjs-components/queries/getPageTitleByBlockUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
+import createObserver from "roamjs-components/dom/createObserver";
+
+// store observers globally so they can be disconnected
+var runners = {
+  menuItems: [],
+  observers: [],
+};
 
 var footnotesTag;
 var footNotesUid;
@@ -15,8 +22,19 @@ var nbInPage = 0;
 var shift = 0;
 var footNotesUidArray = [];
 var isSup = true;
-var supArray = ["#sup^^", "^^"];
 var secondHotkey = "altKey";
+var footnoteButton = null;
+var footnoteButtonSelected = false;
+var noteInline = null;
+
+const supArray = ["#sup^^", "^^"];
+const FOOTNOTE_CREATOR_ID = "footnote-creator";
+
+var noteInlineObj = function (content, beginAt, keyboard = false) {
+  this.content = content;
+  this.beginAt = beginAt;
+  this.keyboardTriggered = keyboard;
+};
 
 var position = function (elt = document.activeElement) {
   this.elt = elt;
@@ -48,6 +66,7 @@ function onKeyDown(e) {
   ) {
     currentPos = new position();
     let startUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+    noteInline = null;
     insertOrRemoveFootnote(startUid);
     e.preventDefault();
   }
@@ -78,7 +97,7 @@ function initAndGetTree(uid) {
 
 function insertFootNote(uid) {
   let tree = initAndGetTree(uid);
-  processNotesInTree(tree, uid, insertNoteInBlock);
+  processNotesInTree(tree, uid, insertNoteInBlock, -1);
 }
 
 function processNotesInTree(tree, triggerUid, callback, index = -1) {
@@ -115,11 +134,23 @@ function processNotesInTree(tree, triggerUid, callback, index = -1) {
 function insertNoteInBlock(uid, content) {
   let left,
     right = "";
-  left = content.slice(0, currentPos.s);
-  right = content.slice(currentPos.e);
   let selection = "";
-  if (currentPos.hasSelection())
-    selection = content.slice(currentPos.s, currentPos.e);
+  if (noteInline != null) {
+    let beginAt = noteInline.beginAt - 2;
+    let endAt = beginAt;
+    if (!noteInline.keyboardTriggered) {
+      //beginAt -= 2;
+      endAt += noteInline.content.length + 4;
+    }
+    left = content.slice(0, beginAt);
+    right = content.slice(endAt);
+    selection = noteInline.content;
+  } else {
+    left = content.slice(0, currentPos.s);
+    right = content.slice(currentPos.e);
+    if (currentPos.hasSelection())
+      selection = content.slice(currentPos.s, currentPos.e);
+  }
   let nbLeft = getNotesNumberInBlock(left).length;
   let newNoteNb = nbLeft + nbInPage + 1;
   let nbRight = getNotesNumberInBlock(right).length;
@@ -127,7 +158,7 @@ function insertNoteInBlock(uid, content) {
   if (nbRight >= 1) right = renumberNotes(right, newNoteNb, nbRight);
   let noteUid = createNewNote(newNoteNb, selection);
   insertAliasInBlock(uid, left, right, newNoteNb, noteUid);
-  openNoteInSidebar(noteUid);
+  if (noteInline === null) openNoteInSidebar(noteUid);
   return content;
 }
 
@@ -340,6 +371,77 @@ function getHotkeys(evt) {
   else return "shiftKey";
 }
 
+function createFootnoteButton(text) {
+  const footnote = document.createElement("div");
+  footnote.className = "dont-unfocus-block create-footnote";
+  footnote.style = "border-radius: 2px; padding: 6px; cursor: pointer;";
+  footnote.title = text;
+
+  const markup = `
+        <div class="rm-autocomplete-result">
+            <span>${text}</span>
+        </div>
+        <div class="bp3-text-overflow-ellipsis" style="color: rgb(129, 145, 157);">Create as footnote</div>
+  `;
+
+  footnote.innerHTML = markup;
+  return footnote;
+}
+
+function getInlineNote() {
+  let textArea = document.querySelectorAll("textarea")[0];
+  let content = textArea.value;
+  let cursorPos = textArea.selectionStart;
+  let begin = content.slice(0, cursorPos).lastIndexOf("((") + 2;
+  let noteStr = content.slice(begin, cursorPos);
+  return new noteInlineObj(noteStr, begin);
+}
+
+function keyboardSelect(e, uid, secondElt) {
+  let noteContent = noteInline.content;
+  if (document.getElementsByClassName("rm-autocomplete__results")) {
+    // if 'Create as block below' option is selected
+    if (secondElt.style.backgroundColor == "rgb(213, 218, 223)") {
+      if (e.key === "ArrowUp" && footnoteButton.title == noteContent) {
+        footnoteButton.setAttribute(
+          "style",
+          "border-radius: 2px; padding: 6px; cursor: pointer; background-color: rgb(213, 218, 223);"
+        );
+        footnoteButtonSelected = true;
+      }
+      document.addEventListener(
+        "keydown",
+        function (e) {
+          keyboardSelect(e, uid, secondElt);
+        },
+        { once: true }
+      );
+    } else {
+      if (e.key == "ArrowDown" || e.key == "ArrowUp") {
+        if (footnoteButton.style.backgroundColor == "rgb(213, 218, 223)") {
+          footnoteButton.setAttribute(
+            "style",
+            "border-radius: 2px; padding: 6px; cursor: pointer; background-color: inherit;"
+          );
+          footnoteButtonSelected = false;
+        }
+        document.addEventListener(
+          "keydown",
+          function (e) {
+            keyboardSelect(e, uid, secondElt);
+          },
+          { once: true }
+        );
+      }
+      if (footnoteButtonSelected && (e.key === "Enter" || e.key === "Tab")) {
+        footnoteButtonSelected = false;
+        noteInline.keyboardTriggered = true;
+        insertFootNote(uid, noteInline);
+      }
+    }
+  }
+}
+
 const panelConfig = {
   tabTitle: "Footnotes",
   settings: [
@@ -415,6 +517,7 @@ export default {
       text: "INSERTFOOTNOTE",
       help: "Insert automatically numbered footnote (requires the Footnotes extension)",
       handler: (context) => () => {
+        noteInline = null;
         currentPos = new position();
         currentPos.s = context.currentContent.length;
         currentPos.e = currentPos.s;
@@ -445,10 +548,65 @@ export default {
       });
     }
 
+    const autocompleteObserver = createObserver(() => {
+      if (
+        document.getElementsByClassName("rm-autocomplete__results") &&
+        !document.getElementById(FOOTNOTE_CREATOR_ID)
+      ) {
+        const blockAutocomplete = document.getElementsByClassName(
+          "rm-autocomplete__results"
+        )[0];
+        if (blockAutocomplete) {
+          let uid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+          noteInline = getInlineNote();
+          if (noteInline.content.length > 0) {
+            let hasCreateNoteItem =
+              blockAutocomplete.querySelector(".create-footnote");
+            if (hasCreateNoteItem === null) {
+              footnoteButton = blockAutocomplete.insertAdjacentElement(
+                "afterbegin",
+                createFootnoteButton(noteInline.content)
+              );
+            } else {
+              blockAutocomplete.removeChild(footnoteButton);
+
+              footnoteButton = blockAutocomplete.insertAdjacentElement(
+                "afterbegin",
+                createFootnoteButton(noteInline.content)
+              );
+            }
+            let addAsBlockElt = footnoteButton.nextElementSibling;
+            document.addEventListener(
+              "keydown",
+              function (e) {
+                keyboardSelect(e, uid, addAsBlockElt);
+              },
+              { once: true }
+            );
+            footnoteButton.addEventListener(
+              "click",
+              function () {
+                insertFootNote(uid);
+              },
+              { once: true }
+            );
+          }
+        }
+      }
+    });
+    // save observers globally so they can be disconnected later
+    runners["observers"] = [autocompleteObserver];
+
     console.log("Footnotes loaded.");
     return;
   },
   onunload: () => {
+    // loop through observers and disconnect
+    for (let index = 0; index < runners["observers"].length; index++) {
+      const element = runners["observers"][index];
+      element.disconnect();
+    }
+
     document.removeEventListener("keydown", onKeyDown);
     window.roamAlphaAPI.ui.commandPalette.removeCommand({
       label: "Footnotes: Reorder footnotes on current page",
