@@ -16,6 +16,9 @@ var runners = {
   observers: [],
 };
 
+const supAliasRegex = /\#sup\^\^\[(\([1-9]*\))\]\(\(\([^\)]*\)\)\)\^\^/g;
+const aliasRegex = /\[(\([1-9]*\))\]\(\(\([^\)]*\)\)\)/g;
+
 var footnotesTag;
 var footNotesUid;
 var nbInPage = 0;
@@ -24,8 +27,10 @@ var footNotesUidArray = [];
 var isSup = true;
 var secondHotkey = "altKey";
 var footnoteButton = null;
+var inlineNotesOption = true;
 var footnoteButtonSelected = false;
 var noteInline = null;
+var replaceBySimpleNumber = false;
 
 const supArray = ["#sup^^", "^^"];
 const FOOTNOTE_CREATOR_ID = "footnote-creator";
@@ -97,22 +102,28 @@ function initAndGetTree(uid) {
 
 function insertFootNote(uid) {
   let tree = initAndGetTree(uid);
-  processNotesInTree(tree, uid, insertNoteInBlock, -1);
+  processNotesInTree(tree, uid, insertNoteInBlock);
 }
 
-function processNotesInTree(tree, triggerUid, callback, index = -1) {
+function processNotesInTree(
+  tree,
+  triggerUid,
+  callback,
+  index = -1,
+  removeAll = false
+) {
   tree = tree.sort((a, b) => a.order - b.order);
   for (let i = 0; i < tree.length; i++) {
     let content = tree[i].string;
     let notesNbArray = getNotesNumberInBlock(content);
     let nbInBlock = notesNbArray.length;
-    if (tree[i].uid === triggerUid) {
-      content = callback(triggerUid, content, index);
+    if (tree[i].uid === triggerUid || removeAll) {
+      content = callback(tree[i].uid, content, index, removeAll);
       nbInBlock += shift;
     }
-    if (nbInBlock != 0) {
-      if (triggerUid === null) {
-        callback(tree[i].uid, content, notesNbArray);
+    if (nbInBlock != 0 && !removeAll) {
+      if (triggerUid === null || removeAll) {
+        callback(tree[i].uid, content, notesNbArray, index, removeAll);
       } else if (shift != 0 && tree[i].uid != triggerUid) {
         content = renumberNotes(content, nbInPage, nbInBlock);
         window.roamAlphaAPI.updateBlock({
@@ -126,7 +137,7 @@ function processNotesInTree(tree, triggerUid, callback, index = -1) {
     }
     let subTree = tree[i].children;
     if (subTree) {
-      processNotesInTree(subTree, triggerUid, callback, index);
+      processNotesInTree(subTree, triggerUid, callback, index, removeAll);
     }
   }
 }
@@ -223,28 +234,42 @@ function removeFootNote(startUid, index) {
   processNotesInTree(tree, startUid, removeFootNoteFromBlock, index);
 }
 
-function removeFootNoteFromBlock(uid, content, noteIndex) {
-  let leftSup = 0;
-  let rightSup = 0;
-  let nb;
-  if (noteIndex != -1) nb = parseInt(noteIndex);
-  else nb = nbInPage + 1;
-  let index = content.indexOf("[(" + nb + ")]");
-  if (content.slice(index - 6, index) === "#sup^^") {
-    leftSup = 6;
-    rightSup = 2;
+function removeAllFootNotes(startUid) {
+  let tree = initAndGetTree(startUid);
+  processNotesInTree(tree, startUid, removeFootNoteFromBlock, -1, true);
+}
+
+function removeFootNoteFromBlock(uid, content, noteIndex, removeAll) {
+  if (removeAll) {
+    let replaceGroup = "";
+    if (replaceBySimpleNumber) replaceGroup = "$1";
+    content = content.replace(supAliasRegex, replaceGroup);
+    content = content.replace(aliasRegex, replaceGroup);
+  } else {
+    let leftSup = 0;
+    let rightSup = 0;
+    let nb;
+    if (noteIndex != -1) nb = parseInt(noteIndex);
+    else nb = nbInPage + 1;
+    let index = content.indexOf("[(" + nb + ")]");
+    if (content.slice(index - 6, index) === "#sup^^") {
+      leftSup = 6;
+      rightSup = 2;
+    }
+    let uidShift = index + nb.toString().length + 7;
+    let noteUid = content.substr(uidShift, 9);
+    let noteContent = getBlockContent(noteUid);
+    let right = content.slice(uidShift + 12 + rightSup);
+    let nbRightNotes = getNotesNumberInBlock(right).length;
+    shift = -1;
+    right = renumberNotes(right, nb - 1, nbRightNotes);
+    if (noteContent.length != 0 && !removeAll)
+      noteContent = "(deleted note: " + noteContent + ")";
+    if (replaceBySimpleNumber) noteContent = "(" + nb + ")";
+    content = content.slice(0, index - leftSup) + noteContent + right;
+    if (!replaceBySimpleNumber)
+      window.roamAlphaAPI.deleteBlock({ block: { uid: noteUid } });
   }
-  let uidShift = index + nb.toString().length + 7;
-  let noteUid = content.substr(uidShift, 9);
-  let noteContent = getBlockContent(noteUid);
-  let right = content.slice(uidShift + 12 + rightSup);
-  let nbRightNotes = getNotesNumberInBlock(right).length;
-  shift = -1;
-  right = renumberNotes(right, nb - 1, nbRightNotes);
-  if (noteContent.length != 0)
-    noteContent = "(deleted note: " + noteContent + ")";
-  content = content.slice(0, index - leftSup) + noteContent + right;
-  window.roamAlphaAPI.deleteBlock({ block: { uid: noteUid } });
   window.roamAlphaAPI.updateBlock({
     block: {
       uid: uid,
@@ -354,18 +379,6 @@ function getBlocksIncludingText(t) {
   );
 }
 
-/*function concatTabAsList(listArray) {
-  let l = "";
-  for (let i = 0; i < listArray.length; i++) {
-    if (listArray[i].search(/\(\(/) == 0) {
-      let refContent = getBlockContent(listArray[i].slice(2, -2));
-      listArray[i] = refContent + " (Text from:" + listArray[i] + ")";
-    }
-    l += "%%" + listArray[i];
-  }
-  return l;
-}*/
-
 function getHotkeys(evt) {
   if (evt === "Ctrl + Alt + F") return "altKey";
   else return "shiftKey";
@@ -394,6 +407,7 @@ function getInlineNote() {
   let cursorPos = textArea.selectionStart;
   let begin = content.slice(0, cursorPos).lastIndexOf("((") + 2;
   let noteStr = content.slice(begin, cursorPos);
+  if (content.slice(begin - 2, begin) != "((") noteStr = "";
   return new noteInlineObj(noteStr, begin);
 }
 
@@ -442,6 +456,53 @@ function keyboardSelect(e, uid, secondElt) {
   }
 }
 
+function addAutocompleteObserver() {
+  if (
+    document.getElementsByClassName("rm-autocomplete__results") &&
+    !document.getElementById(FOOTNOTE_CREATOR_ID)
+  ) {
+    const blockAutocomplete = document.getElementsByClassName(
+      "rm-autocomplete__results"
+    )[0];
+    if (blockAutocomplete) {
+      let uid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+      noteInline = getInlineNote();
+      if (noteInline.content.length > 0) {
+        let hasCreateNoteItem =
+          blockAutocomplete.querySelector(".create-footnote");
+        if (hasCreateNoteItem === null) {
+          footnoteButton = blockAutocomplete.insertAdjacentElement(
+            "afterbegin",
+            createFootnoteButton(noteInline.content)
+          );
+        } else {
+          blockAutocomplete.removeChild(footnoteButton);
+
+          footnoteButton = blockAutocomplete.insertAdjacentElement(
+            "afterbegin",
+            createFootnoteButton(noteInline.content)
+          );
+        }
+        let addAsBlockElt = footnoteButton.nextElementSibling;
+        document.addEventListener(
+          "keydown",
+          function (e) {
+            keyboardSelect(e, uid, addAsBlockElt);
+          },
+          { once: true }
+        );
+        footnoteButton.addEventListener(
+          "click",
+          function () {
+            insertFootNote(uid);
+          },
+          { once: true }
+        );
+      }
+    }
+  }
+}
+
 const panelConfig = {
   tabTitle: "Footnotes",
   settings: [
@@ -465,6 +526,30 @@ const panelConfig = {
         type: "switch",
         onChange: (evt) => {
           isSup = !isSup;
+        },
+      },
+    },
+    {
+      id: "inlineNotes",
+      name: "Inline footnotes creation",
+      description:
+        "Add an option to block reference autocomplete box to create a footnote from the text entered between (( )):",
+      action: {
+        type: "switch",
+        onChange: (evt) => {
+          inlineNotesOption = !inlineNotesOption;
+        },
+      },
+    },
+    {
+      id: "replaceByNumber",
+      name: "Deleted alias to number",
+      description:
+        "When deleting a footnote, replace the alias by a simple note number in brackets and does not delete the note block nor its content:",
+      action: {
+        type: "switch",
+        onChange: (evt) => {
+          replaceBySimpleNumber = !replaceBySimpleNumber;
         },
       },
     },
@@ -495,6 +580,12 @@ export default {
     if (extensionAPI.settings.get("hotkeys") == null)
       extensionAPI.settings.set("hotkeys", "Ctrl + Alt + F");
     secondHotkey = getHotkeys(extensionAPI.settings.get("hotkeys"));
+    if (extensionAPI.settings.get("inlineNotes") == null)
+      extensionAPI.settings.set("inlineNotes", true);
+    inlineNotesOption = extensionAPI.settings.get("inlineNotes");
+    if (extensionAPI.settings.get("replaceByNumber") == null)
+      extensionAPI.settings.set("replaceByNumber", false);
+    replaceBySimpleNumber = extensionAPI.settings.get("replaceByNumber");
     /*   window.roamAlphaAPI.ui.commandPalette.addCommand({
       label: "Insert footnote",
       callback: () => {
@@ -509,6 +600,14 @@ export default {
       callback: async () => {
         let uid = await getAnyBlockUidInCurrentPage();
         reorderFootNotes(uid);
+      },
+    });
+    window.roamAlphaAPI.ui.commandPalette.addCommand({
+      label:
+        "Footnotes: Warning, danger zone! Delete all footnotes on current page",
+      callback: async () => {
+        let uid = await getAnyBlockUidInCurrentPage();
+        removeAllFootNotes(uid);
       },
     });
     document.addEventListener("keydown", onKeyDown);
@@ -548,52 +647,7 @@ export default {
       });
     }
 
-    const autocompleteObserver = createObserver(() => {
-      if (
-        document.getElementsByClassName("rm-autocomplete__results") &&
-        !document.getElementById(FOOTNOTE_CREATOR_ID)
-      ) {
-        const blockAutocomplete = document.getElementsByClassName(
-          "rm-autocomplete__results"
-        )[0];
-        if (blockAutocomplete) {
-          let uid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-          noteInline = getInlineNote();
-          if (noteInline.content.length > 0) {
-            let hasCreateNoteItem =
-              blockAutocomplete.querySelector(".create-footnote");
-            if (hasCreateNoteItem === null) {
-              footnoteButton = blockAutocomplete.insertAdjacentElement(
-                "afterbegin",
-                createFootnoteButton(noteInline.content)
-              );
-            } else {
-              blockAutocomplete.removeChild(footnoteButton);
-
-              footnoteButton = blockAutocomplete.insertAdjacentElement(
-                "afterbegin",
-                createFootnoteButton(noteInline.content)
-              );
-            }
-            let addAsBlockElt = footnoteButton.nextElementSibling;
-            document.addEventListener(
-              "keydown",
-              function (e) {
-                keyboardSelect(e, uid, addAsBlockElt);
-              },
-              { once: true }
-            );
-            footnoteButton.addEventListener(
-              "click",
-              function () {
-                insertFootNote(uid);
-              },
-              { once: true }
-            );
-          }
-        }
-      }
-    });
+    const autocompleteObserver = createObserver(addAutocompleteObserver);
     // save observers globally so they can be disconnected later
     runners["observers"] = [autocompleteObserver];
 

@@ -14,3 +14,7 @@
 [data-tag="sup"] {
   display: none;
 }
+
+.rm-block-ref [data-tag="sup"] {
+  display: none;
+}
