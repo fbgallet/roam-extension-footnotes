@@ -8,6 +8,7 @@
 
 ### Insert a footnote
 **🆕 New feature** (v.2): you can directly create footnotes in the same way that you can natively insert a new child block by simply typing the text after a double bracket: `((my note...`. You have only to choose the "Create as footnote" option in the autocomplete popup (Arrow up + Enter). This feature can be disabled in the settings panel.
+(Thanks 🙏 to [Matt Vogel](https://github.com/8bitgentleman) for the idea and its important contribution to the code.)
 
 ![image](https://user-images.githubusercontent.com/74436347/197252568-2788c73e-7ae1-48ca-8aa0-afe06750fe68.png)
 
