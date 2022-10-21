@@ -2,7 +2,7 @@
 
 ### Easily insert numbered footnotes in a Roam page.
 
-![image](https://user-images.githubusercontent.com/74436347/189387081-fbb7ef64-5fde-441b-97c4-0bc7bae3e520.png)
+### 🆕 ![image](https://user-images.githubusercontent.com/74436347/189387081-fbb7ef64-5fde-441b-97c4-0bc7bae3e520.png)
 
 [See changelog here for an overview of updates and new features](https://github.com/fbgallet/roam-extension-footnotes/blob/main/CHANGELOG.md)
 
