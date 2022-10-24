@@ -1,7 +1,8 @@
-## v.2 (October 21st, 2022)
+## v.2 (October 24st, 2022)
 ### New features:
   - option to insert footnote inline, using the native `((` autocomplete box for block references, on an idea and with an important contribution of [Matt Vogel](https://github.com/8bitgentleman) 
   - option to replace the alias by the simple note number in brackets, when deleting a note
   - new command to delete all footnotes in the current page
+  - option to add a line above the footnotes header
 ### Fixes:
   - `#sup` tag is now hidden in block references
