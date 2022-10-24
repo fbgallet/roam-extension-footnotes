@@ -13,8 +13,8 @@ Thanks 🙏 to [Matt Vogel](https://github.com/8bitgentleman) for the idea and i
 ![image](https://user-images.githubusercontent.com/74436347/197252568-2788c73e-7ae1-48ca-8aa0-afe06750fe68.png)
 
 Or press `Ctrl + Alt + F` (or Ctrl + Shift + F as an option) at the location where you want to insert the note: 
-  - a new block is created, under the header #footnotes (customizable) and opened in the sidebar, to enter the note,
-  - if some text is selected when you press the hotkeys to insert the note, the text is automatically copied into the note,
+  - a new block is created, under the header #footnotes (customizable, under a line or not) and opened in the sidebar, to enter the note,
+  - if some text is selected when you press the hotkeys to insert the note, the text is automatically copied into the note (and the note is not opened in the sidebar, since its content is already defined),
   - a numbered alias is inserted (in superscript as an option),
   - all following notes on the page are automatically renumbered.
 
