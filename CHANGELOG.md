@@ -6,3 +6,4 @@
   - option to add a line above the footnotes header
 ### Fixes:
   - `#sup` tag is now hidden in block references
+  - notes are not opened in the sidebar if the content is moved from the current selection or entered inline after `((`
