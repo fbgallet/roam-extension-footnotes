@@ -31,6 +31,7 @@ var inlineNotesOption = true;
 var footnoteButtonSelected = false;
 var noteInline = null;
 var replaceBySimpleNumber = false;
+var insertLineBeforeFootnotes = false;
 
 const supArray = ["#sup^^", "^^"];
 const FOOTNOTE_CREATOR_ID = "footnote-creator";
@@ -72,7 +73,9 @@ function onKeyDown(e) {
     currentPos = new position();
     let startUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
     noteInline = null;
-    insertOrRemoveFootnote(startUid);
+    setTimeout(() => {
+      insertOrRemoveFootnote(startUid);
+    }, 20);
     e.preventDefault();
   }
 }
@@ -350,6 +353,13 @@ function getFootNotesHeaderUid(pageTitle) {
 
 function createFootNotesHeader(pageTitle) {
   let pageUid = getPageUidByPageTitle(pageTitle);
+  if (insertLineBeforeFootnotes) {
+    let lineUid = window.roamAlphaAPI.util.generateUID();
+    window.roamAlphaAPI.createBlock({
+      location: { "parent-uid": pageUid, order: "last" },
+      block: { uid: lineUid, string: "---" },
+    });
+  }
   let uid = window.roamAlphaAPI.util.generateUID();
   window.roamAlphaAPI.createBlock({
     location: { "parent-uid": pageUid, order: "last" },
@@ -508,12 +518,24 @@ const panelConfig = {
   settings: [
     {
       id: "footnotesHeader",
-      name: "Footnote header",
+      name: "Footnotes header",
       description: "Text inserted as the parent block of footnotes:",
       action: {
         type: "input",
         onChange: (evt) => {
           footnotesTag = evt.target.value;
+        },
+      },
+    },
+    {
+      id: "insertLine",
+      name: "Insert a line above footnotes header",
+      description:
+        "Insert a block drawing a line just above the footnotes header, at the bottom of the page:",
+      action: {
+        type: "switch",
+        onChange: (evt) => {
+          insertLineBeforeFootnotes = !insertLineBeforeFootnotes;
         },
       },
     },
@@ -569,23 +591,27 @@ const panelConfig = {
 };
 
 export default {
-  onload: ({ extensionAPI }) => {
-    extensionAPI.settings.panel.create(panelConfig);
-    if (extensionAPI.settings.get("footnotesHeader") == null)
-      extensionAPI.settings.set("footnotesHeader", "#footnotes");
-    footnotesTag = extensionAPI.settings.get("footnotesHeader");
-    if (extensionAPI.settings.get("supNotes") == null)
-      extensionAPI.settings.set("supNotes", true);
-    isSup = extensionAPI.settings.get("supNotes");
-    if (extensionAPI.settings.get("hotkeys") == null)
-      extensionAPI.settings.set("hotkeys", "Ctrl + Alt + F");
-    secondHotkey = getHotkeys(extensionAPI.settings.get("hotkeys"));
-    if (extensionAPI.settings.get("inlineNotes") == null)
-      extensionAPI.settings.set("inlineNotes", true);
-    inlineNotesOption = extensionAPI.settings.get("inlineNotes");
-    if (extensionAPI.settings.get("replaceByNumber") == null)
-      extensionAPI.settings.set("replaceByNumber", false);
-    replaceBySimpleNumber = extensionAPI.settings.get("replaceByNumber");
+  onload: async ({ extensionAPI }) => {
+    await extensionAPI.settings.panel.create(panelConfig);
+    if ((await extensionAPI.settings.get("footnotesHeader")) === null)
+      await extensionAPI.settings.set("footnotesHeader", "#footnotes");
+    footnotesTag = await extensionAPI.settings.get("footnotesHeader");
+    if ((await extensionAPI.settings.get("supNotes")) === null)
+      await extensionAPI.settings.set("supNotes", true);
+    isSup = await extensionAPI.settings.get("supNotes");
+    if ((await extensionAPI.settings.get("hotkeys")) === null)
+      await extensionAPI.settings.set("hotkeys", "Ctrl + Alt + F");
+    secondHotkey = getHotkeys(await extensionAPI.settings.get("hotkeys"));
+    if ((await extensionAPI.settings.get("inlineNotes")) === null)
+      await extensionAPI.settings.set("inlineNotes", true);
+    inlineNotesOption = await extensionAPI.settings.get("inlineNotes");
+    if ((await extensionAPI.settings.get("replaceByNumber")) === null)
+      await extensionAPI.settings.set("replaceByNumber", false);
+    replaceBySimpleNumber = await extensionAPI.settings.get("replaceByNumber");
+    if ((await extensionAPI.settings.get("insertLine")) === null)
+      await extensionAPI.settings.set("insertLine", false);
+    insertLineBeforeFootnotes = await extensionAPI.settings.get("insertLine");
+
     /*   window.roamAlphaAPI.ui.commandPalette.addCommand({
       label: "Insert footnote",
       callback: () => {
@@ -652,7 +678,7 @@ export default {
     runners["observers"] = [autocompleteObserver];
 
     console.log("Footnotes loaded.");
-    return;
+    //return;
   },
   onunload: () => {
     // loop through observers and disconnect
