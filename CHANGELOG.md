@@ -1,3 +1,9 @@
+## v.3 (October 25th, 2022)
+### Enhancement
+  - note block opened in the right sidebar is automatically focused to write the note.
+### Fixes
+  - option to enable/disable inline footnote with `((` was not working.
+
 ## v.2 (October 24st, 2022)
 ### New features:
   - option to insert footnote inline, using the native `((` autocomplete box for block references, on an idea and with an important contribution of [Matt Vogel](https://github.com/8bitgentleman) 
