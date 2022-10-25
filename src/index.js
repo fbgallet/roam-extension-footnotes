@@ -26,12 +26,12 @@ var shift = 0;
 var footNotesUidArray = [];
 var isSup = true;
 var secondHotkey = "altKey";
-var footnoteButton = null;
-var inlineNotesOption = true;
-var footnoteButtonSelected = false;
+var footnoteButton;
+var inlineNotesOption;
+var footnoteButtonSelected;
 var noteInline = null;
-var replaceBySimpleNumber = false;
-var insertLineBeforeFootnotes = false;
+var replaceBySimpleNumber;
+var insertLineBeforeFootnotes;
 
 const supArray = ["#sup^^", "^^"];
 const FOOTNOTE_CREATOR_ID = "footnote-creator";
@@ -172,7 +172,7 @@ function insertNoteInBlock(uid, content) {
   if (nbRight >= 1) right = renumberNotes(right, newNoteNb, nbRight);
   let noteUid = createNewNote(newNoteNb, selection);
   insertAliasInBlock(uid, left, right, newNoteNb, noteUid);
-  if (noteInline === null) openNoteInSidebar(noteUid);
+  if (selection.length === 0) openNoteInSidebar(noteUid);
   return content;
 }
 
@@ -340,6 +340,22 @@ function openNoteInSidebar(uid) {
   window.roamAlphaAPI.ui.rightSidebar.addWindow({
     window: { type: "block", "block-uid": uid },
   });
+  let sidebarWindows;
+  setTimeout(() => {
+    sidebarWindows = window.roamAlphaAPI.ui.rightSidebar.getWindows();
+  }, 100);
+  setTimeout(() => {
+    let windowId;
+    for (let i = 0; i < sidebarWindows.length; i++) {
+      if (sidebarWindows[i]["block-uid"] == uid) {
+        windowId = sidebarWindows[i]["window-id"];
+        break;
+      }
+    }
+    window.roamAlphaAPI.ui.setBlockFocusAndSelection({
+      location: { "block-uid": uid, "window-id": windowId },
+    });
+  }, 100);
 }
 
 function getFootNotesHeaderUid(pageTitle) {
@@ -467,6 +483,19 @@ function keyboardSelect(e, uid, secondElt) {
 }
 
 function addAutocompleteObserver() {
+  const autocompleteObserver = createObserver(setAutocompleteObserver);
+  // save observers globally so they can be disconnected later
+  runners["observers"] = [autocompleteObserver];
+}
+function disconnectAutocompleteObserver() {
+  // loop through observers and disconnect
+  for (let index = 0; index < runners["observers"].length; index++) {
+    const element = runners["observers"][index];
+    element.disconnect();
+  }
+}
+
+function setAutocompleteObserver() {
   if (
     document.getElementsByClassName("rm-autocomplete__results") &&
     !document.getElementById(FOOTNOTE_CREATOR_ID)
@@ -560,6 +589,8 @@ const panelConfig = {
         type: "switch",
         onChange: (evt) => {
           inlineNotesOption = !inlineNotesOption;
+          if (inlineNotesOption) addAutocompleteObserver();
+          else disconnectAutocompleteObserver();
         },
       },
     },
@@ -592,25 +623,25 @@ const panelConfig = {
 
 export default {
   onload: async ({ extensionAPI }) => {
-    await extensionAPI.settings.panel.create(panelConfig);
-    if ((await extensionAPI.settings.get("footnotesHeader")) === null)
+    extensionAPI.settings.panel.create(panelConfig);
+    if (extensionAPI.settings.get("footnotesHeader") === null)
       await extensionAPI.settings.set("footnotesHeader", "#footnotes");
-    footnotesTag = await extensionAPI.settings.get("footnotesHeader");
-    if ((await extensionAPI.settings.get("supNotes")) === null)
+    footnotesTag = extensionAPI.settings.get("footnotesHeader");
+    if (extensionAPI.settings.get("supNotes") === null)
       await extensionAPI.settings.set("supNotes", true);
-    isSup = await extensionAPI.settings.get("supNotes");
-    if ((await extensionAPI.settings.get("hotkeys")) === null)
+    isSup = extensionAPI.settings.get("supNotes");
+    if (extensionAPI.settings.get("hotkeys") === null)
       await extensionAPI.settings.set("hotkeys", "Ctrl + Alt + F");
-    secondHotkey = getHotkeys(await extensionAPI.settings.get("hotkeys"));
-    if ((await extensionAPI.settings.get("inlineNotes")) === null)
+    secondHotkey = getHotkeys(extensionAPI.settings.get("hotkeys"));
+    if (extensionAPI.settings.get("inlineNotes") === null)
       await extensionAPI.settings.set("inlineNotes", true);
-    inlineNotesOption = await extensionAPI.settings.get("inlineNotes");
-    if ((await extensionAPI.settings.get("replaceByNumber")) === null)
+    inlineNotesOption = extensionAPI.settings.get("inlineNotes");
+    if (extensionAPI.settings.get("replaceByNumber") === null)
       await extensionAPI.settings.set("replaceByNumber", false);
-    replaceBySimpleNumber = await extensionAPI.settings.get("replaceByNumber");
-    if ((await extensionAPI.settings.get("insertLine")) === null)
-      await extensionAPI.settings.set("insertLine", false);
-    insertLineBeforeFootnotes = await extensionAPI.settings.get("insertLine");
+    replaceBySimpleNumber = extensionAPI.settings.get("replaceByNumber");
+    if (extensionAPI.settings.get("insertLine") === null)
+      await extensionAPI.settings.set("insertLine", true);
+    insertLineBeforeFootnotes = extensionAPI.settings.get("insertLine");
 
     /*   window.roamAlphaAPI.ui.commandPalette.addCommand({
       label: "Insert footnote",
@@ -673,20 +704,13 @@ export default {
       });
     }
 
-    const autocompleteObserver = createObserver(addAutocompleteObserver);
-    // save observers globally so they can be disconnected later
-    runners["observers"] = [autocompleteObserver];
+    if (inlineNotesOption) addAutocompleteObserver();
 
     console.log("Footnotes loaded.");
     //return;
   },
   onunload: () => {
-    // loop through observers and disconnect
-    for (let index = 0; index < runners["observers"].length; index++) {
-      const element = runners["observers"][index];
-      element.disconnect();
-    }
-
+    disconnectAutocompleteObserver();
     document.removeEventListener("keydown", onKeyDown);
     window.roamAlphaAPI.ui.commandPalette.removeCommand({
       label: "Footnotes: Reorder footnotes on current page",
