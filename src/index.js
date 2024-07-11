@@ -27,6 +27,7 @@ let nbInPage = 0;
 let shift = 0;
 let footNotesUidArray = [];
 let isSup = true;
+let isToOpenInSidebar;
 let footnoteButton;
 let inlineNotesOption;
 let footnoteButtonSelected;
@@ -166,7 +167,7 @@ function insertNoteInBlock(uid, content) {
   let noteUid = createNewNote(newNoteNb, selection);
   insertAliasInBlock(uid, left, right, newNoteNb, noteUid);
   if (selection.length === 0)
-    isToOpenInSidebar ? openNoteInSidebar(noteUid) : openNoteInSidebar(noteUid);
+    isToOpenInSidebar ? openNoteInSidebar(noteUid) : focusOnNote(noteUid);
   return content;
 }
 
@@ -348,6 +349,15 @@ function openNoteInSidebar(uid) {
     }
     window.roamAlphaAPI.ui.setBlockFocusAndSelection({
       location: { "block-uid": uid, "window-id": windowId },
+    });
+  }, 100);
+}
+
+function focusOnNote(uid) {
+  const currentWindowId = window.roamAlphaAPI.ui.getFocusedBlock()["window-id"];
+  setTimeout(() => {
+    window.roamAlphaAPI.ui.setBlockFocusAndSelection({
+      location: { "block-uid": uid, "window-id": currentWindowId },
     });
   }, 100);
 }
@@ -575,6 +585,17 @@ const panelConfig = {
       },
     },
     {
+      id: "inSidebar",
+      name: "Open in Sidebar",
+      description: "Open created footnote in right Sidebar:",
+      action: {
+        type: "switch",
+        onChange: (evt) => {
+          isToOpenInSidebar = !isToOpenInSidebar;
+        },
+      },
+    },
+    {
       id: "inlineNotes",
       name: "Inline footnotes creation",
       description:
@@ -612,6 +633,9 @@ export default {
     if (extensionAPI.settings.get("supNotes") === null)
       await extensionAPI.settings.set("supNotes", true);
     isSup = extensionAPI.settings.get("supNotes");
+    if (extensionAPI.settings.get("inSidebar") === null)
+      await extensionAPI.settings.set("inSidebar", true);
+    isToOpenInSidebar = extensionAPI.settings.get("inSidebar");
     if (extensionAPI.settings.get("inlineNotes") === null)
       await extensionAPI.settings.set("inlineNotes", true);
     inlineNotesOption = extensionAPI.settings.get("inlineNotes");
