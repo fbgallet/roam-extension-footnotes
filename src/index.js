@@ -342,7 +342,7 @@ function openNoteInSidebar(uid) {
   setTimeout(() => {
     let windowId;
     for (let i = 0; i < sidebarWindows.length; i++) {
-      if (sidebarWindows[i]["block-uid"] == uid) {
+      if (sidebarWindows[i]["block-uid"] === uid) {
         windowId = sidebarWindows[i]["window-id"];
         break;
       }
@@ -387,28 +387,8 @@ function createFootNotesHeader(pageTitle) {
   });
   return uid;
 }
-/*
-function normalizeUid(uid) {
-  if (uid.length == 13) {
-    if (uid.includes("((") && uid.includes("))")) return uid.slice(2, -2);
-  }
-  if (uid.length == 9) return uid;
-  return undefined;
-}
 
-function normalizeTitle(str) {
-  return str.replace(/[/\\|\[\]$:~()^\{\}"'*_`]/g, "");
-}*/
-
-function getBlocksIncludingText(t) {
-  return window.roamAlphaAPI.q(
-    `[:find ?u ?contents 
-    :where [?block :block/uid ?u]
-      [?block :block/string ?contents]
-      [(clojure.string/includes? ?contents  "${t}")]]`
-  );
-}
-
+// get setting from previous version
 function getHotkeys(evt) {
   if (evt === "Ctrl + Alt + F") return "alt";
   else return "shift";
@@ -445,8 +425,8 @@ function keyboardSelect(e, uid, secondElt) {
   let noteContent = noteInline.content;
   if (document.getElementsByClassName("rm-autocomplete__results")) {
     // if 'Create as block below' option is selected
-    if (secondElt.style.backgroundColor == "rgb(213, 218, 223)") {
-      if (e.key === "ArrowUp" && footnoteButton.title == noteContent) {
+    if (secondElt.style.backgroundColor === "rgb(213, 218, 223)") {
+      if (e.key === "ArrowUp" && footnoteButton.title === noteContent) {
         footnoteButton.setAttribute(
           "style",
           "border-radius: 2px; padding: 6px; cursor: pointer; background-color: rgb(213, 218, 223);"
@@ -461,8 +441,8 @@ function keyboardSelect(e, uid, secondElt) {
         { once: true }
       );
     } else {
-      if (e.key == "ArrowDown" || e.key == "ArrowUp") {
-        if (footnoteButton.style.backgroundColor == "rgb(213, 218, 223)") {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        if (footnoteButton.style.backgroundColor === "rgb(213, 218, 223)") {
           footnoteButton.setAttribute(
             "style",
             "border-radius: 2px; padding: 6px; cursor: pointer; background-color: inherit;"
