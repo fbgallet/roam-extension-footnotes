@@ -11,82 +11,75 @@ import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
 import createObserver from "roamjs-components/dom/createObserver";
 
 // store observers globally so they can be disconnected
-var runners = {
+let runners = {
   menuItems: [],
   observers: [],
 };
 
 const supAliasRegex = /\#sup\^\^\[(\([1-9]*\))\]\(\(\([^\)]*\)\)\)\^\^/g;
 const aliasRegex = /\[(\([1-9]*\))\]\(\(\([^\)]*\)\)\)/g;
-
-var footnotesTag;
-var footNotesUid;
-var nbInPage = 0;
-var shift = 0;
-var footNotesUidArray = [];
-var isSup = true;
-var secondHotkey = "altKey";
-var footnoteButton;
-var inlineNotesOption;
-var footnoteButtonSelected;
-var noteInline = null;
-var replaceBySimpleNumber;
-var insertLineBeforeFootnotes;
-
 const supArray = ["#sup^^", "^^"];
 const FOOTNOTE_CREATOR_ID = "footnote-creator";
 
-var noteInlineObj = function (content, beginAt, keyboard = false) {
-  this.content = content;
-  this.beginAt = beginAt;
-  this.keyboardTriggered = keyboard;
-};
+let footnotesTag;
+let footNotesUid;
+let nbInPage = 0;
+let shift = 0;
+let footNotesUidArray = [];
+let isSup = true;
+let footnoteButton;
+let inlineNotesOption;
+let footnoteButtonSelected;
+let noteInline = null;
+let replaceBySimpleNumber;
+let insertLineBeforeFootnotes;
+let currentPos;
 
-var position = function (elt = document.activeElement) {
-  this.elt = elt;
-  this.s = elt.selectionStart;
-  this.e = elt.selectionEnd;
+class noteInlineObj {
+  constructor(content, beginAt, keyboard = false) {
+    this.content = content;
+    this.beginAt = beginAt;
+    this.keyboardTriggered = keyboard;
+  }
+}
 
-  this.setPos = function (shift = 0) {
-    this.elt = document.activeElement;
-    this.s = this.elt.selectionStart + shift;
-    this.e = this.elt.selectionEnd + shift;
-  };
-  this.isEgal = function (pos) {
-    if (this.elt === pos.elt && this.s === pos.s && this.e === pos.e)
-      return true;
-    else return false;
-  };
-  this.hasSelection = function () {
-    if (this.s != this.e) return true;
-    else return false;
-  };
-};
-var currentPos; // = new position();
+class position {
+  constructor(elt = document.activeElement) {
+    this.elt = elt;
+    this.s = elt.selectionStart;
+    this.e = elt.selectionEnd;
+
+    this.setPos = function (shift = 0) {
+      this.elt = document.activeElement;
+      this.s = this.elt.selectionStart + shift;
+      this.e = this.elt.selectionEnd + shift;
+    };
+    this.isEgal = function (pos) {
+      if (this.elt === pos.elt && this.s === pos.s && this.e === pos.e)
+        return true;
+      else return false;
+    };
+    this.hasSelection = function () {
+      if (this.s != this.e) return true;
+      else return false;
+    };
+  }
+}
 
 function onKeyDown(e) {
-  if (
-    (e.ctrlKey || e.metaKey) &&
-    e[secondHotkey] &&
-    e.key.toLowerCase() == "f"
-  ) {
+  // catch cursor position in current block just before opening Command Palette
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
     currentPos = new position();
-    let startUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-    noteInline = null;
-    setTimeout(() => {
-      insertOrRemoveFootnote(startUid);
-    }, 20);
-    e.preventDefault();
   }
 }
 
 function insertOrRemoveFootnote(uid) {
-  if (uid != undefined) {
+  if (uid !== undefined) {
     if (currentPos.hasSelection()) {
       let content = getBlockContent(uid);
       let selection = content.slice(currentPos.s - 2, currentPos.e + 2);
       let noteIndex = getNoteIndex(selection);
-      if (noteIndex != null) {
+      if (noteIndex !== null) {
         removeFootNote(uid, noteIndex);
         return;
       }
@@ -172,7 +165,8 @@ function insertNoteInBlock(uid, content) {
   if (nbRight >= 1) right = renumberNotes(right, newNoteNb, nbRight);
   let noteUid = createNewNote(newNoteNb, selection);
   insertAliasInBlock(uid, left, right, newNoteNb, noteUid);
-  if (selection.length === 0) openNoteInSidebar(noteUid);
+  if (selection.length === 0)
+    isToOpenInSidebar ? openNoteInSidebar(noteUid) : openNoteInSidebar(noteUid);
   return content;
 }
 
@@ -406,8 +400,8 @@ function getBlocksIncludingText(t) {
 }
 
 function getHotkeys(evt) {
-  if (evt === "Ctrl + Alt + F") return "altKey";
-  else return "shiftKey";
+  if (evt === "Ctrl + Alt + F") return "alt";
+  else return "shift";
 }
 
 function createFootnoteButton(text) {
@@ -606,18 +600,6 @@ const panelConfig = {
         },
       },
     },
-    {
-      id: "hotkeys",
-      name: "Hotkeys",
-      description: "Hotkeys to insert/delete footnote",
-      action: {
-        type: "select",
-        items: ["Ctrl + Alt + F", "Ctrl + Shift + F"],
-        onChange: (evt) => {
-          secondHotkey = getHotkeys(evt);
-        },
-      },
-    },
   ],
 };
 
@@ -630,9 +612,6 @@ export default {
     if (extensionAPI.settings.get("supNotes") === null)
       await extensionAPI.settings.set("supNotes", true);
     isSup = extensionAPI.settings.get("supNotes");
-    if (extensionAPI.settings.get("hotkeys") === null)
-      await extensionAPI.settings.set("hotkeys", "Ctrl + Alt + F");
-    secondHotkey = getHotkeys(extensionAPI.settings.get("hotkeys"));
     if (extensionAPI.settings.get("inlineNotes") === null)
       await extensionAPI.settings.set("inlineNotes", true);
     inlineNotesOption = extensionAPI.settings.get("inlineNotes");
@@ -643,23 +622,28 @@ export default {
       await extensionAPI.settings.set("insertLine", true);
     insertLineBeforeFootnotes = extensionAPI.settings.get("insertLine");
 
-    /*   window.roamAlphaAPI.ui.commandPalette.addCommand({
-      label: "Insert footnote",
+    const defaultFirstKey = window.roamAlphaAPI.platform.isPC ? "ctrl" : "cmd";
+    const defaultSecondKey = getHotkeys(extensionAPI.settings.get("hotkeys"));
+    extensionAPI.settings.set("hotkeys", null);
+    extensionAPI.ui.commandPalette.addCommand({
+      label: "Footnotes: Insert or remove footnote at current position",
       callback: () => {
-        //        let position = document.activeElement.selectionStart;
-        //        console.log(position);
+        const cmdPaletteElt = document.querySelector(".rm-command-palette");
+        if (!cmdPaletteElt) currentPos = new position();
         let startUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-        if (startUid) insertFootNote(startUid);
+        if (startUid) insertOrRemoveFootnote(startUid);
       },
-    });*/
-    window.roamAlphaAPI.ui.commandPalette.addCommand({
+      // ctrl-shift-f or ctrl-alt-f or cmd if mac ?
+      "default-hotkey": `${defaultFirstKey}-${defaultSecondKey}-f`,
+    });
+    extensionAPI.ui.commandPalette.addCommand({
       label: "Footnotes: Reorder footnotes on current page",
       callback: async () => {
         let uid = await getAnyBlockUidInCurrentPage();
         reorderFootNotes(uid);
       },
     });
-    window.roamAlphaAPI.ui.commandPalette.addCommand({
+    extensionAPI.ui.commandPalette.addCommand({
       label:
         "Footnotes: Warning, danger zone! Delete all footnotes on current page",
       callback: async () => {
@@ -707,14 +691,10 @@ export default {
     if (inlineNotesOption) addAutocompleteObserver();
 
     console.log("Footnotes loaded.");
-    //return;
   },
   onunload: () => {
     disconnectAutocompleteObserver();
     document.removeEventListener("keydown", onKeyDown);
-    window.roamAlphaAPI.ui.commandPalette.removeCommand({
-      label: "Footnotes: Reorder footnotes on current page",
-    });
     console.log("Footnotes unloaded");
   },
 };
