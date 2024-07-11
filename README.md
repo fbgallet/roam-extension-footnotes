@@ -6,7 +6,7 @@
 
 ### [See changelog here for an overview of updates and new features](https://github.com/fbgallet/roam-extension-footnotes/blob/main/CHANGELOG.md) 🆕
 
-### Insert a footnote
+## Insert a footnote
 
 Create footnotes in the same way that you can natively insert a new child block by simply typing the text after a double bracket: `((my note...`. You have only to choose the "Create as footnote" option in the autocomplete popup (Arrow up + Enter).
 
@@ -22,7 +22,7 @@ Or run `Footnotes: Insert or remove footnote at current position` command, or pr
 
 You can customize hotkeys for `Footnotes: Insert or remove footnote at current position` command, just like any other command from the command palette, either by searching for "footnotes hotkey" in the command palette, or at the bottom of the extension settings.
 
-### Delete a footnote
+## Delete a footnote
 
 Select, in the main text, the number of the note (the selection can be overflowing without problem, but it must contain at most one note number), then press hotkeys to insert/remove a footnote:
 
@@ -33,12 +33,12 @@ Select, in the main text, the number of the note (the selection can be overflowi
 
 You can delete all footnotes on page in bulk (only the alias, the note blocks will note be deleted, since you can easily delete them at once) with `Footnotes: Warning, danger zone! Delete all footnotes on current page` command. It can be useful to export more easily its content to a classic document, since you can replace all alias by the number in brackets.
 
-### Reorder / Renumber footnotes
+## Reorder / Renumber footnotes
 
 If you move blocks or parts of text, or if you manually delete notes by mistake, you can reorder the list of notes and correct their numbering.
 Simply run `Footnotes: Reorder footnotes on current page` command, from the command palette (Ctrl+P).
 
-### SmartBlocks commands
+## SmartBlocks commands
 
 You can insert or delete a footnote using SmartBlocks commands: `<%INSERTFOOTNOTE%>` and `<%DELETEFOOTNOTE%>`.
 To delete a footnote, place the cursor just before the footnote number, search the SmartBlocks and click on its name in the autocomplete box (press enter doesn't work here if you are using superscript footnote, because of the #sup tag autocomplete box)
