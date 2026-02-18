@@ -1,5 +1,6 @@
 import {
   getBlockContent,
+  deleteBlock,
   getAnyBlockUidInCurrentPage,
   getPageTreeFromAnyBlockUid,
   getBlockUidOnPageByExactText,
@@ -16,10 +17,15 @@ let runners = {
   observers: [],
 };
 
-const supAliasRegex = /\#sup\^\^\[(\([1-9]*\))\]\(\(\([^\)]*\)\)\)\^\^/g;
-const aliasRegex = /\[(\([1-9]*\))\]\(\(\([^\)]*\)\)\)/g;
+const supAliasRegex = /\#sup\^\^\[(\(\d+\))\]\(\(\([^\)]*\)\)\)\^\^/g;
+const aliasRegex = /\[(\(\d+\))\]\(\(\([^\)]*\)\)\)/g;
+// Matches either form (with or without #sup^^...^^) — use without /g for .test()
+const anyAliasPattern =
+  /(?:\#sup\^\^)?\[(\(\d+\))\]\(\(\([^\)]*\)\)\)(?:\^\^)?/;
+// Same as anyAliasPattern but also captures the note UID as group 2
+const anyAliasWithUidPattern =
+  /(?:\#sup\^\^)?\[\(\d+\)\]\(\(\(([^\)]*)\)\)\)(?:\^\^)?/g;
 const supArray = ["#sup^^", "^^"];
-const FOOTNOTE_CREATOR_ID = "footnote-creator";
 
 let footnotesTag;
 let footNotesUid;
@@ -46,9 +52,13 @@ class noteInlineObj {
 
 class position {
   constructor(elt = document.activeElement) {
+    if (!elt || elt.tagName !== "TEXTAREA") {
+      const focusedTextarea = document.querySelector("textarea:focus");
+      elt = focusedTextarea || elt;
+    }
     this.elt = elt;
-    this.s = elt.selectionStart;
-    this.e = elt.selectionEnd;
+    this.s = elt && elt.selectionStart !== null ? elt.selectionStart : 0;
+    this.e = elt && elt.selectionEnd !== null ? elt.selectionEnd : 0;
 
     this.setPos = function (shift = 0) {
       this.elt = document.activeElement;
@@ -61,69 +71,95 @@ class position {
       else return false;
     };
     this.hasSelection = function () {
-      if (this.s != this.e) return true;
+      if (this.s !== this.e) return true;
       else return false;
     };
   }
 }
 
 function onKeyDown(e) {
-  // catch cursor position in current block just before opening Command Palette
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
+  // Capture cursor position whenever a textarea is focused and a modifier+key
+  // combination that could trigger a footnote command is pressed.
+  // This covers both Cmd+P (command palette) and the direct hotkey (Cmd+Shift+F
+  // or Cmd+Alt+F), capturing position before focus can move away from the textarea.
+  if (
+    document.activeElement?.tagName === "TEXTAREA" &&
+    (e.metaKey || e.ctrlKey)
+  ) {
     currentPos = new position();
   }
 }
 
-function insertOrRemoveFootnote(uid) {
+async function insertOrRemoveFootnote(uid) {
   if (uid !== undefined) {
+    let content = getBlockContent(uid);
+    // Check selection first (with padding for the alias delimiters)
     if (currentPos.hasSelection()) {
-      let content = getBlockContent(uid);
       let selection = content.slice(currentPos.s - 2, currentPos.e + 2);
       let noteIndex = getNoteIndex(selection);
       if (noteIndex !== null) {
-        removeFootNote(uid, noteIndex);
+        await removeFootNote(uid, noteIndex);
         return;
       }
     }
-    insertFootNote(uid);
+    // Check if cursor is inside a footnote alias (no selection needed)
+    const aliasPattern = new RegExp(anyAliasPattern.source, "g");
+    let match;
+    while ((match = aliasPattern.exec(content)) !== null) {
+      if (
+        match.index <= currentPos.s &&
+        currentPos.s <= match.index + match[0].length
+      ) {
+        let noteIndex = getNoteIndex(match[0]);
+        if (noteIndex !== null) {
+          await removeFootNote(uid, noteIndex);
+          return;
+        }
+      }
+    }
+    await insertFootNote(uid);
   }
 }
 
-function initAndGetTree(uid) {
+async function initAndGetTree(uid) {
   nbInPage = 0;
   shift = 0;
   let pageTitle = getPageTitleByBlockUid(uid);
-  footNotesUid = getFootNotesHeaderUid(pageTitle);
+  footNotesUid = await getFootNotesHeaderUid(pageTitle);
   return getPageTreeFromAnyBlockUid(uid);
 }
 
-function insertFootNote(uid) {
-  let tree = initAndGetTree(uid);
-  processNotesInTree(tree, uid, insertNoteInBlock);
+async function insertFootNote(uid) {
+  let tree = await initAndGetTree(uid);
+  await processNotesInTree(tree, uid, insertNoteInBlock);
 }
 
-function processNotesInTree(
+async function processNotesInTree(
   tree,
   triggerUid,
   callback,
   index = -1,
-  removeAll = false
+  removeAll = false,
+  selectedUids = null,
 ) {
   tree = tree.sort((a, b) => a.order - b.order);
   for (let i = 0; i < tree.length; i++) {
     let content = tree[i].string;
     let notesNbArray = getNotesNumberInBlock(content);
     let nbInBlock = notesNbArray.length;
-    if (tree[i].uid === triggerUid || removeAll) {
-      content = callback(tree[i].uid, content, index, removeAll);
+    const isTarget =
+      tree[i].uid === triggerUid ||
+      (removeAll && (selectedUids === null || selectedUids.has(tree[i].uid)));
+    if (isTarget) {
+      content = await callback(tree[i].uid, content, index, removeAll);
       nbInBlock += shift;
     }
-    if (nbInBlock != 0 && !removeAll) {
+    if (nbInBlock !== 0 && !removeAll) {
       if (triggerUid === null || removeAll) {
-        callback(tree[i].uid, content, notesNbArray, index, removeAll);
-      } else if (shift != 0 && tree[i].uid != triggerUid) {
+        await callback(tree[i].uid, content, notesNbArray, index, removeAll);
+      } else if (shift !== 0 && tree[i].uid !== triggerUid) {
         content = renumberNotes(content, nbInPage, nbInBlock);
-        window.roamAlphaAPI.updateBlock({
+        await window.roamAlphaAPI.updateBlock({
           block: {
             uid: tree[i].uid,
             string: content,
@@ -134,20 +170,26 @@ function processNotesInTree(
     }
     let subTree = tree[i].children;
     if (subTree) {
-      processNotesInTree(subTree, triggerUid, callback, index, removeAll);
+      await processNotesInTree(
+        subTree,
+        triggerUid,
+        callback,
+        index,
+        removeAll,
+        selectedUids,
+      );
     }
   }
 }
 
-function insertNoteInBlock(uid, content) {
-  let left,
+async function insertNoteInBlock(uid, content) {
+  let left = "",
     right = "";
   let selection = "";
-  if (noteInline != null) {
+  if (noteInline !== null) {
     let beginAt = noteInline.beginAt - 2;
     let endAt = beginAt;
     if (!noteInline.keyboardTriggered) {
-      //beginAt -= 2;
       endAt += noteInline.content.length + 4;
     }
     left = content.slice(0, beginAt);
@@ -164,19 +206,19 @@ function insertNoteInBlock(uid, content) {
   let nbRight = getNotesNumberInBlock(right).length;
   shift = 1;
   if (nbRight >= 1) right = renumberNotes(right, newNoteNb, nbRight);
-  let noteUid = createNewNote(newNoteNb, selection);
-  insertAliasInBlock(uid, left, right, newNoteNb, noteUid);
+  let noteUid = await createNewNote(newNoteNb, selection);
+  await insertAliasInBlock(uid, left, right, newNoteNb, noteUid);
   if (selection.length === 0)
     isToOpenInSidebar ? openNoteInSidebar(noteUid) : focusOnNote(noteUid);
   return content;
 }
 
-function insertAliasInBlock(uid, left, right, nb, noteUid) {
+async function insertAliasInBlock(uid, left, right, nb, noteUid) {
   if (isSup) {
     left += supArray[0];
     right = supArray[1] + right;
   }
-  window.roamAlphaAPI.updateBlock({
+  await window.roamAlphaAPI.updateBlock({
     block: {
       uid: uid,
       string: left + "[(" + nb + ")](((" + noteUid + ")))" + right,
@@ -195,7 +237,7 @@ function getNoteIndex(content) {
   let noteRegex = /\([0-9]*\)/g;
   let nbRegex = /\d+/g;
   let note = content.match(noteRegex);
-  if (note != null) return note[0].match(nbRegex);
+  if (note !== null) return note[0].match(nbRegex);
   return null;
 }
 
@@ -212,33 +254,54 @@ function renumberNotes(content, startNb, nbOfNotes) {
   function replaceNoteNumber(content, s, i) {
     let currentNb = s + i;
     let newNb = currentNb + shift;
-    //console.log(currentNb, newNb);
     return content.replace("[(" + currentNb + ")]", "[(" + newNb + ")]");
   }
   return content;
 }
 
-function createNewNote(nb = 1, content) {
+async function createNewNote(nb = 1, content) {
   let uid = window.roamAlphaAPI.util.generateUID();
-  window.roamAlphaAPI.createBlock({
+  await window.roamAlphaAPI.createBlock({
     location: { "parent-uid": footNotesUid, order: nb - 1 },
     block: { uid: uid, string: content },
   });
   return uid;
 }
 
-function removeFootNote(startUid, index) {
-  let tree = initAndGetTree(startUid);
-  processNotesInTree(tree, startUid, removeFootNoteFromBlock, index);
+async function removeFootNote(startUid, index) {
+  let tree = await initAndGetTree(startUid);
+  await processNotesInTree(tree, startUid, removeFootNoteFromBlock, index);
 }
 
-function removeAllFootNotes(startUid) {
-  let tree = initAndGetTree(startUid);
-  processNotesInTree(tree, startUid, removeFootNoteFromBlock, -1, true);
+async function removeAllFootNotes(startUid) {
+  let tree = await initAndGetTree(startUid);
+  await processNotesInTree(tree, startUid, removeFootNoteFromBlock, -1, true);
 }
 
-function removeFootNoteFromBlock(uid, content, noteIndex, removeAll) {
+async function removeFootNotesInSelection(startUid, selectedUids) {
+  let tree = await initAndGetTree(startUid);
+  await processNotesInTree(
+    tree,
+    startUid,
+    removeFootNoteFromBlock,
+    -1,
+    true,
+    selectedUids,
+  );
+  await reorderFootNotes(startUid);
+}
+
+async function removeFootNoteFromBlock(uid, content, noteIndex, removeAll) {
   if (removeAll) {
+    if (!replaceBySimpleNumber) {
+      let m;
+      const deletePromises = [];
+      while ((m = anyAliasWithUidPattern.exec(content)) !== null) {
+        deletePromises.push(deleteBlock(m[1]));
+      }
+      anyAliasWithUidPattern.lastIndex = 0;
+      await Promise.all(deletePromises);
+    }
     let replaceGroup = "";
     if (replaceBySimpleNumber) replaceGroup = "$1";
     content = content.replace(supAliasRegex, replaceGroup);
@@ -247,7 +310,7 @@ function removeFootNoteFromBlock(uid, content, noteIndex, removeAll) {
     let leftSup = 0;
     let rightSup = 0;
     let nb;
-    if (noteIndex != -1) nb = parseInt(noteIndex);
+    if (noteIndex !== -1) nb = parseInt(noteIndex);
     else nb = nbInPage + 1;
     let index = content.indexOf("[(" + nb + ")]");
     if (content.slice(index - 6, index) === "#sup^^") {
@@ -261,14 +324,13 @@ function removeFootNoteFromBlock(uid, content, noteIndex, removeAll) {
     let nbRightNotes = getNotesNumberInBlock(right).length;
     shift = -1;
     right = renumberNotes(right, nb - 1, nbRightNotes);
-    if (noteContent.length != 0 && !removeAll)
+    if (noteContent.length !== 0 && !removeAll)
       noteContent = "(deleted note: " + noteContent + ")";
     if (replaceBySimpleNumber) noteContent = "(" + nb + ")";
     content = content.slice(0, index - leftSup) + noteContent + right;
-    if (!replaceBySimpleNumber)
-      window.roamAlphaAPI.deleteBlock({ block: { uid: noteUid } });
+    if (!replaceBySimpleNumber) await deleteBlock(noteUid);
   }
-  window.roamAlphaAPI.updateBlock({
+  await window.roamAlphaAPI.updateBlock({
     block: {
       uid: uid,
       string: content,
@@ -277,14 +339,14 @@ function removeFootNoteFromBlock(uid, content, noteIndex, removeAll) {
   return content;
 }
 
-function reorderFootNotes(uid) {
-  let tree = initAndGetTree(uid);
+async function reorderFootNotes(uid) {
+  let tree = await initAndGetTree(uid);
   footNotesUidArray = [];
-  processNotesInTree(tree, null, reorderNotesInBlock);
+  await processNotesInTree(tree, null, reorderNotesInBlock);
   reorderFootNoteBlock(footNotesUid);
 }
 
-function reorderNotesInBlock(uid, content, notes) {
+async function reorderNotesInBlock(uid, content, notes) {
   let toUpdate = false;
   for (let i = 0; i < notes.length; i++) {
     let noteNb = getNoteIndex(notes[i][0]);
@@ -292,22 +354,22 @@ function reorderNotesInBlock(uid, content, notes) {
     let index = notes[i].index;
     let uidIndex = index + notes[i][0].length;
     let noteUid = content.slice(uidIndex, uidIndex + 9);
-    if (parseInt(noteNb) != neededNb) {
+    if (parseInt(noteNb) !== neededNb) {
       toUpdate = true;
       console.log(
-        "Note " + noteNb + " renumbered to " + neededNb + " in " + uid
+        "Note " + noteNb + " renumbered to " + neededNb + " in " + uid,
       );
       let fullNoteAlias = content.slice(index, uidIndex + 12);
       let newNoteAlias = fullNoteAlias.replace(
         "(" + noteNb + ")",
-        "(" + neededNb + ")"
+        "(" + neededNb + ")",
       );
       content = content.replace(fullNoteAlias, newNoteAlias);
       footNotesUidArray.splice(neededNb, 0, noteUid);
     } else footNotesUidArray.push(noteUid);
   }
   if (toUpdate)
-    window.roamAlphaAPI.updateBlock({
+    await window.roamAlphaAPI.updateBlock({
       block: {
         uid: uid,
         string: content,
@@ -317,15 +379,14 @@ function reorderNotesInBlock(uid, content, notes) {
 }
 
 function reorderFootNoteBlock(uid) {
-  //console.log(footNotesUidArray);
-  let currentNotes = getTreeByUid(uid)[0].children;
+  let currentNotes = getTreeByUid(uid)?.[0]?.children;
   if (currentNotes) {
     for (let i = 0; i < currentNotes.length; i++) {
       if (footNotesUidArray.includes(currentNotes[i].uid) === false)
         footNotesUidArray.push(currentNotes[i].uid);
     }
   }
-  roamAlphaAPI.data.block.reorderBlocks({
+  window.roamAlphaAPI.data.block.reorderBlocks({
     location: { "parent-uid": uid },
     blocks: footNotesUidArray,
   });
@@ -335,11 +396,8 @@ function openNoteInSidebar(uid) {
   window.roamAlphaAPI.ui.rightSidebar.addWindow({
     window: { type: "block", "block-uid": uid },
   });
-  let sidebarWindows;
   setTimeout(() => {
-    sidebarWindows = window.roamAlphaAPI.ui.rightSidebar.getWindows();
-  }, 100);
-  setTimeout(() => {
+    const sidebarWindows = window.roamAlphaAPI.ui.rightSidebar.getWindows();
     let windowId;
     for (let i = 0; i < sidebarWindows.length; i++) {
       if (sidebarWindows[i]["block-uid"] === uid) {
@@ -354,7 +412,9 @@ function openNoteInSidebar(uid) {
 }
 
 function focusOnNote(uid) {
-  const currentWindowId = window.roamAlphaAPI.ui.getFocusedBlock()["window-id"];
+  const currentWindowId =
+    window.roamAlphaAPI.ui.getFocusedBlock()?.["window-id"];
+  if (!currentWindowId) return;
   setTimeout(() => {
     window.roamAlphaAPI.ui.setBlockFocusAndSelection({
       location: { "block-uid": uid, "window-id": currentWindowId },
@@ -362,26 +422,26 @@ function focusOnNote(uid) {
   }, 100);
 }
 
-function getFootNotesHeaderUid(pageTitle) {
+async function getFootNotesHeaderUid(pageTitle) {
   let uid = getBlockUidOnPageByExactText(
     footnotesTag,
-    normalizePageTitle(pageTitle)
+    normalizePageTitle(pageTitle),
   );
   if (uid === null) return createFootNotesHeader(pageTitle);
   else return uid;
 }
 
-function createFootNotesHeader(pageTitle) {
+async function createFootNotesHeader(pageTitle) {
   let pageUid = getPageUidByPageTitle(pageTitle);
   if (insertLineBeforeFootnotes) {
     let lineUid = window.roamAlphaAPI.util.generateUID();
-    window.roamAlphaAPI.createBlock({
+    await window.roamAlphaAPI.createBlock({
       location: { "parent-uid": pageUid, order: "last" },
       block: { uid: lineUid, string: "---" },
     });
   }
   let uid = window.roamAlphaAPI.util.generateUID();
-  window.roamAlphaAPI.createBlock({
+  await window.roamAlphaAPI.createBlock({
     location: { "parent-uid": pageUid, order: "last" },
     block: { uid: uid, string: footnotesTag, "children-view-type": "numbered" },
   });
@@ -412,57 +472,93 @@ function createFootnoteButton(text) {
 }
 
 function getInlineNote() {
-  let textArea = document.querySelectorAll("textarea")[0];
+  const textArea =
+    document.querySelector("textarea:focus") ||
+    document.querySelectorAll("textarea")[0];
+  if (!textArea) return new noteInlineObj("", 0);
   let content = textArea.value;
   let cursorPos = textArea.selectionStart;
   let begin = content.slice(0, cursorPos).lastIndexOf("((") + 2;
   let noteStr = content.slice(begin, cursorPos);
-  if (content.slice(begin - 2, begin) != "((") noteStr = "";
+  if (content.slice(begin - 2, begin) !== "((") noteStr = "";
   return new noteInlineObj(noteStr, begin);
 }
 
-function keyboardSelect(e, uid, secondElt) {
-  let noteContent = noteInline.content;
-  if (document.getElementsByClassName("rm-autocomplete__results")) {
-    // if 'Create as block below' option is selected
-    if (secondElt.style.backgroundColor === "rgb(213, 218, 223)") {
-      if (e.key === "ArrowUp" && footnoteButton.title === noteContent) {
+let acKeyHandler = null;
+let acUid = null;
+
+function isRoamFirstItemHighlighted(ac) {
+  const firstRoamItem = ac.querySelector(":scope > div:not(.create-footnote)");
+  return (
+    firstRoamItem &&
+    firstRoamItem.style.backgroundColor === "rgb(213, 218, 223)"
+  );
+}
+
+function clearRoamHighlight(ac) {
+  const items = ac.querySelectorAll(":scope > div:not(.create-footnote)");
+  items.forEach(function (item) {
+    if (item.style.backgroundColor === "rgb(213, 218, 223)") {
+      item.style.backgroundColor = "";
+    }
+  });
+}
+
+function installAcKeyHandler(uid) {
+  removeAcKeyHandler();
+  acUid = uid;
+  footnoteButtonSelected = false;
+  acKeyHandler = function (e) {
+    const ac = document.getElementsByClassName("rm-autocomplete__results")[0];
+    if (!ac) {
+      removeAcKeyHandler();
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      if (footnoteButtonSelected) {
+        // Already on our button — let it pass so Roam does nothing visible
+      } else if (isRoamFirstItemHighlighted(ac)) {
+        // Roam's top item is selected: intercept to move to our button
+        e.preventDefault();
+        e.stopPropagation();
+        clearRoamHighlight(ac);
         footnoteButton.setAttribute(
           "style",
-          "border-radius: 2px; padding: 6px; cursor: pointer; background-color: rgb(213, 218, 223);"
+          "border-radius: 2px; padding: 6px; cursor: pointer; background-color: rgb(213, 218, 223);",
         );
         footnoteButtonSelected = true;
       }
-      document.addEventListener(
-        "keydown",
-        function (e) {
-          keyboardSelect(e, uid, secondElt);
-        },
-        { once: true }
-      );
-    } else {
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        if (footnoteButton.style.backgroundColor === "rgb(213, 218, 223)") {
-          footnoteButton.setAttribute(
-            "style",
-            "border-radius: 2px; padding: 6px; cursor: pointer; background-color: inherit;"
-          );
-          footnoteButtonSelected = false;
-        }
-        document.addEventListener(
-          "keydown",
-          function (e) {
-            keyboardSelect(e, uid, secondElt);
-          },
-          { once: true }
+      // Otherwise: let Roam handle ArrowUp normally
+    } else if (e.key === "ArrowDown") {
+      if (footnoteButtonSelected) {
+        // Leave our button: clear highlight, let Roam handle the down arrow
+        footnoteButton.setAttribute(
+          "style",
+          "border-radius: 2px; padding: 6px; cursor: pointer; background-color: inherit;",
         );
-      }
-      if (footnoteButtonSelected && (e.key === "Enter" || e.key === "Tab")) {
         footnoteButtonSelected = false;
-        noteInline.keyboardTriggered = true;
-        insertFootNote(uid, noteInline);
       }
+      // Let Roam handle ArrowDown normally in all cases
+    } else if (
+      footnoteButtonSelected &&
+      (e.key === "Enter" || e.key === "Tab")
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      footnoteButtonSelected = false;
+      noteInline.keyboardTriggered = true;
+      removeAcKeyHandler();
+      insertFootNote(acUid);
     }
+  };
+  // Capture phase: fires before Roam's own handlers
+  document.addEventListener("keydown", acKeyHandler, true);
+}
+
+function removeAcKeyHandler() {
+  if (acKeyHandler) {
+    document.removeEventListener("keydown", acKeyHandler, true);
+    acKeyHandler = null;
   }
 }
 
@@ -480,50 +576,37 @@ function disconnectAutocompleteObserver() {
 }
 
 function setAutocompleteObserver() {
-  if (
-    document.getElementsByClassName("rm-autocomplete__results") &&
-    !document.getElementById(FOOTNOTE_CREATOR_ID)
-  ) {
-    const blockAutocomplete = document.getElementsByClassName(
-      "rm-autocomplete__results"
-    )[0];
-    if (blockAutocomplete) {
-      let uid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-      noteInline = getInlineNote();
-      if (noteInline.content.length > 0) {
-        let hasCreateNoteItem =
-          blockAutocomplete.querySelector(".create-footnote");
-        if (hasCreateNoteItem === null) {
-          footnoteButton = blockAutocomplete.insertAdjacentElement(
-            "afterbegin",
-            createFootnoteButton(noteInline.content)
-          );
-        } else {
-          blockAutocomplete.removeChild(footnoteButton);
+  const blockAutocomplete = document.getElementsByClassName(
+    "rm-autocomplete__results",
+  )[0];
+  if (!blockAutocomplete) return;
 
-          footnoteButton = blockAutocomplete.insertAdjacentElement(
-            "afterbegin",
-            createFootnoteButton(noteInline.content)
-          );
-        }
-        let addAsBlockElt = footnoteButton.nextElementSibling;
-        document.addEventListener(
-          "keydown",
-          function (e) {
-            keyboardSelect(e, uid, addAsBlockElt);
-          },
-          { once: true }
-        );
-        footnoteButton.addEventListener(
-          "click",
-          function () {
-            insertFootNote(uid);
-          },
-          { once: true }
-        );
-      }
+  let uid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+  noteInline = getInlineNote();
+  if (noteInline.content.length === 0) return;
+
+  let hasCreateNoteItem = blockAutocomplete.querySelector(".create-footnote");
+  if (hasCreateNoteItem !== null) {
+    if (hasCreateNoteItem.parentNode === blockAutocomplete) {
+      blockAutocomplete.removeChild(hasCreateNoteItem);
     }
   }
+  footnoteButton = blockAutocomplete.insertAdjacentElement(
+    "afterbegin",
+    createFootnoteButton(noteInline.content),
+  );
+  // Only install the capture-phase handler once (first time button appears)
+  if (!hasCreateNoteItem) {
+    installAcKeyHandler(uid);
+  }
+  footnoteButton.addEventListener(
+    "click",
+    function () {
+      removeAcKeyHandler();
+      insertFootNote(uid);
+    },
+    { once: true },
+  );
 }
 
 const panelConfig = {
@@ -632,12 +715,14 @@ export default {
     extensionAPI.ui.commandPalette.addCommand({
       label: "Footnotes: Insert or remove footnote at current position",
       callback: () => {
-        const cmdPaletteElt = document.querySelector(".rm-command-palette");
-        if (!cmdPaletteElt) currentPos = new position();
+        noteInline = null;
+        // currentPos is captured by onKeyDown whenever a Ctrl/Cmd key combo fires
+        // while a textarea is focused (covers both Cmd+P and the direct hotkey).
+        // Fall back to capturing now only if currentPos was never set (edge case).
+        if (!currentPos) currentPos = new position();
         let startUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
         if (startUid) insertOrRemoveFootnote(startUid);
       },
-      // ctrl-shift-f or ctrl-alt-f or cmd if mac ?
       "default-hotkey": `${defaultFirstKey}-${defaultSecondKey}-f`,
     });
     extensionAPI.ui.commandPalette.addCommand({
@@ -649,10 +734,17 @@ export default {
     });
     extensionAPI.ui.commandPalette.addCommand({
       label:
-        "Footnotes: Warning, danger zone! Delete all footnotes on current page",
+        "Footnotes: Warning, danger zone! Delete all footnotes on current page or selection",
       callback: async () => {
-        let uid = await getAnyBlockUidInCurrentPage();
-        removeAllFootNotes(uid);
+        const selected = window.roamAlphaAPI.ui.multiselect.getSelected();
+        if (selected.length > 0) {
+          const startUid = selected[0]["block-uid"];
+          const selectedUids = new Set(selected.map((b) => b["block-uid"]));
+          removeFootNotesInSelection(startUid, selectedUids);
+        } else {
+          let uid = await getAnyBlockUidInCurrentPage();
+          removeAllFootNotes(uid);
+        }
       },
     });
     document.addEventListener("keydown", onKeyDown);
@@ -693,6 +785,82 @@ export default {
     }
 
     if (inlineNotesOption) addAutocompleteObserver();
+
+    extensionAPI.ui.slashCommand.addCommand({
+      label: "Insert footnote",
+      callback: (args) => {
+        noteInline = null;
+        const uid = args["block-uid"];
+        // args.indexes = [slashStart, slashEnd] in the block string.
+        // indexes[0] is where "/" was typed — the exact insertion point.
+        const slashPos = (args.indexes?.[0] ?? 1) - 1;
+        currentPos = new position();
+        currentPos.s = slashPos;
+        currentPos.e = slashPos;
+        // Defer so Roam finishes removing the "/Insert footnote" slash text
+        // before we read the block content and insert the alias.
+        setTimeout(() => insertOrRemoveFootnote(uid), 100);
+      },
+    });
+
+    window.roamAlphaAPI.ui.blockRefContextMenu.addCommand({
+      label: "Delete footnote",
+      "display-conditional": (args, e) => {
+        // Show only if the referenced block is a child of the footnotes header
+        // (i.e. it's an actual footnote, not an arbitrary block reference).
+        const refUid = args["ref-uid"];
+        const blockUid = args["block-uid"];
+        const pageTitle = getPageTitleByBlockUid(blockUid);
+        const headerUid = getBlockUidOnPageByExactText(
+          footnotesTag,
+          normalizePageTitle(pageTitle),
+        );
+        if (!headerUid) return false;
+        const children = getTreeByUid(headerUid)?.[0]?.children;
+        return children?.some((child) => child.uid === refUid) ?? false;
+      },
+      callback: (args) => {
+        const blockUid = args["block-uid"];
+        const content = getBlockContent(blockUid);
+        // indexes = [outerStart, outerEnd] of the full alias in the containing block
+        const aliasStart = args.indexes?.[0] ?? 0;
+        currentPos = new position();
+        currentPos.s = aliasStart;
+        currentPos.e = aliasStart;
+        // Expand selection to span the alias so insertOrRemoveFootnote removes it
+        const aliasPattern = new RegExp(anyAliasPattern.source, "g");
+        let match;
+        while ((match = aliasPattern.exec(content)) !== null) {
+          if (
+            match.index <= aliasStart &&
+            aliasStart <= match.index + match[0].length
+          ) {
+            currentPos.s = match.index;
+            currentPos.e = match.index + match[0].length;
+            break;
+          }
+        }
+        insertOrRemoveFootnote(blockUid);
+      },
+    });
+
+    window.roamAlphaAPI.ui.msContextMenu.addCommand({
+      label: "Delete footnotes",
+      "display-conditional": (args) => {
+        return (
+          args.blocks?.some((block) => {
+            const content = getBlockContent(block["block-uid"]);
+            return anyAliasPattern.test(content);
+          }) ?? false
+        );
+      },
+      callback: (args) => {
+        const uid = args.blocks?.[0]?.["block-uid"];
+        if (!uid) return;
+        const selectedUids = new Set(args.blocks.map((b) => b["block-uid"]));
+        removeFootNotesInSelection(uid, selectedUids);
+      },
+    });
 
     console.log("Footnotes loaded.");
   },

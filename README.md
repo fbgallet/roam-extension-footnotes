@@ -8,11 +8,15 @@
 
 ## Insert a footnote
 
-Create footnotes in the same way that you can natively insert a new child block by simply typing the text after a double bracket: `((my note...`. You have only to choose the "Create as footnote" option in the autocomplete popup (Arrow up + Enter).
-
 ![image](https://user-images.githubusercontent.com/74436347/197252568-2788c73e-7ae1-48ca-8aa0-afe06750fe68.png)
 
-Or run `Footnotes: Insert or remove footnote at current position` command, or press corresponding hotkeys (by default: `Cmd+Shift+f` on MacOS, `Ctrl+Shift+f` on Windows) at the location where you want to insert the note:
+Three different way to create a footnote:
+
+1. Run `Footnotes: Insert or remove footnote at current position` command, or press corresponding hotkeys (by default: `Cmd+Shift+f` on MacOS, `Ctrl+Shift+f` on Windows) at the location where you want to insert the note.
+2. Type the note text after a double bracket: `((my note...`. You have only to choose the "Create as footnote" option in the autocomplete popup (Arrow up + Enter).
+3. (🆕 new in v.5) `/Insert footnote` slash command (just type `/foo`; note that slash command autocomplete works only after a space)
+
+How it works:
 
 - a new block is created, under the header #footnotes (customizable, under a line or not) and focused, to enter the note,
 - by default, the footnote will be opened in the right sidebar (🆕 in v.4: in the current view if the corresponding setting is disabled),
@@ -31,7 +35,7 @@ Select, in the main text, the number of the note (the selection can be overflowi
   or you can choose to replace the alias by the note number in brackets (better for exporting) and keep the note block,
 - all following notes on the page are automatically renumbered.
 
-You can delete all footnotes on page in bulk (only the alias, the note blocks will note be deleted, since you can easily delete them at once) with `Footnotes: Warning, danger zone! Delete all footnotes on current page` command. It can be useful to export more easily its content to a classic document, since you can replace all alias by the number in brackets.
+You can also delete footnotes in bulk with `Footnotes: Warning, danger zone! Delete all footnotes on current page or selection` command. It can be useful to export more easily its content to a classic document, since you can replace all alias by the number in brackets.
 
 ## Reorder / Renumber footnotes
 
@@ -53,12 +57,8 @@ You will need to create SmartBlocks like this:
 
 ```
 
-## Support my work
+### **How to support my work ?**
 
-Building extensions for Roam represents a significant amount of work. If you want to encourage me to develop further and enhance them, you can [buy me a coffee ☕ here](https://buymeacoffee.com/fbgallet). Thanks in advance for your support! 🙏
+Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)
 
----
-
-### For any question or suggestion, DM me on **Twitter** or in Roam Slack and follow me to be informed of updates and new extensions : [@fbgallet](https://twitter.com/fbgallet).
-
-You can also add issues directly in [Github here](https://github.com/fbgallet/roam-extension-footnotes/issues).
+You can report issues directly in [Github here](https://github.com/fbgallet/roam-extension-footnotes/issues).

@@ -1,3 +1,14 @@
+## v.5 (February, 2026)
+
+### New features
+
+- added '/Insert footnote' slash command
+- Added option in MultiSelect context menu to delete all footnotes in the selection
+
+### Fixes
+
+- Fixed footnote inserted sometime at the end of the block
+
 ## v.4 (July 11th, 2024)
 
 ### Updates

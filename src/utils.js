@@ -14,10 +14,11 @@ export function getTreeByUid(uid) {
 }
 
 export function getPageTreeFromAnyBlockUid(uid) {
-  return window.roamAlphaAPI.q(`[:find (pull ?page 
+  const result = window.roamAlphaAPI.q(`[:find (pull ?page
     [:block/page :block/string :block/uid :block/children :block/order
     {:block/page ...} {:block/children ...}		])
-                    :where [?page :block/uid "${uid}"]  ]`)[0][0].page.children;
+                    :where [?page :block/uid "${uid}"]  ]`);
+  return result?.[0]?.[0]?.page?.children ?? [];
 }
 
 export async function getAnyBlockUidInCurrentPage() {
@@ -33,7 +34,11 @@ function getFirstChildUid(uid) {
   let q = `[:find (pull ?c
                        [:block/uid :block/children {:block/children ...}])
                     :where [?c :block/uid "${uid}"]  ]`;
-  return window.roamAlphaAPI.q(q)[0][0].children[0].uid;
+  return window.roamAlphaAPI.q(q)?.[0]?.[0]?.children?.[0]?.uid ?? null;
+}
+
+export function deleteBlock(uid) {
+  return window.roamAlphaAPI.deleteBlock({ block: { uid: uid } });
 }
 
 export function getBlockUidOnPageByExactText(text, page) {
