@@ -28,11 +28,12 @@ You can customize hotkeys for `Footnotes: Insert or remove footnote at current p
 
 ## Delete a footnote
 
-Select, in the main text, the number of the note (the selection can be overflowing without problem, but it must contain at most one note number), then press hotkeys to insert/remove a footnote:
+Select, in the main text, the number of the note (the selection can be overflowing without problem, but it must contain at most one note number), then press hotkeys to insert/remove a footnote. Or right-click on the footnote number to open block reference context menu and run 'Extensions > Delete footnote' option.
+
+How it works:
 
 - the note block will be deleted,
-- if there was some content in the note block, it will be inserted in the text body, in place of the alias,
-  or you can choose to replace the alias by the note number in brackets (better for exporting) and keep the note block,
+- if there was some content in the note block, it will be inserted in the text body, in place of the alias, or you can choose to replace the alias by the note number in brackets (better for exporting) and keep the note block (see option in settings),
 - all following notes on the page are automatically renumbered.
 
 You can also delete footnotes in bulk with `Footnotes: Warning, danger zone! Delete all footnotes on current page or selection` command. It can be useful to export more easily its content to a classic document, since you can replace all alias by the number in brackets.

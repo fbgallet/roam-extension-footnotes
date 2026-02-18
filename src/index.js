@@ -805,7 +805,7 @@ export default {
 
     window.roamAlphaAPI.ui.blockRefContextMenu.addCommand({
       label: "Delete footnote",
-      "display-conditional": (args, e) => {
+      "display-conditional": (args) => {
         // Show only if the referenced block is a child of the footnotes header
         // (i.e. it's an actual footnote, not an arbitrary block reference).
         const refUid = args["ref-uid"];
@@ -867,6 +867,9 @@ export default {
   onunload: () => {
     disconnectAutocompleteObserver();
     document.removeEventListener("keydown", onKeyDown);
+    window.roamAlphaAPI.ui.blockRefContextMenu.removeCommand({
+      label: "Delete footnote",
+    });
     console.log("Footnotes unloaded");
   },
 };

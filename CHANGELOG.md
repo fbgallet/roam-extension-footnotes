@@ -2,8 +2,9 @@
 
 ### New features
 
-- added '/Insert footnote' slash command
-- Added option in MultiSelect context menu to delete all footnotes in the selection
+- '/Insert footnote' slash command
+- Option in footnote context menu (as block ref alias) to delete the corresponding footnote
+- Option in MultiSelect context menu to delete all footnotes in the selection
 
 ### Fixes
 
