@@ -5,6 +5,7 @@
 - '/Insert footnote' slash command
 - Option in footnote context menu (as block ref alias) to delete the corresponding footnote
 - Option in MultiSelect context menu to delete all footnotes in the selection
+- Footnotes section is entirely deleted if there is no more note or content, when deleting footnote(s)
 
 ### Fixes
 

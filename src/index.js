@@ -271,11 +271,13 @@ async function createNewNote(nb = 1, content) {
 async function removeFootNote(startUid, index) {
   let tree = await initAndGetTree(startUid);
   await processNotesInTree(tree, startUid, removeFootNoteFromBlock, index);
+  await cleanupFootNotesHeaderIfEmpty(startUid);
 }
 
 async function removeAllFootNotes(startUid) {
   let tree = await initAndGetTree(startUid);
   await processNotesInTree(tree, startUid, removeFootNoteFromBlock, -1, true);
+  await cleanupFootNotesHeaderIfEmpty(startUid);
 }
 
 async function removeFootNotesInSelection(startUid, selectedUids) {
@@ -289,6 +291,33 @@ async function removeFootNotesInSelection(startUid, selectedUids) {
     selectedUids,
   );
   await reorderFootNotes(startUid);
+  await cleanupFootNotesHeaderIfEmpty(startUid);
+}
+
+async function cleanupFootNotesHeaderIfEmpty(anyUid) {
+  const pageTitle = getPageTitleByBlockUid(anyUid);
+  const headerUid = getBlockUidOnPageByExactText(
+    footnotesTag,
+    normalizePageTitle(pageTitle),
+  );
+  if (!headerUid) return;
+  const headerTree = getTreeByUid(headerUid)?.[0];
+  if (headerTree?.children?.length) return; // still has footnote children
+  // Locate the separator before deleting, using page tree (which includes order)
+  let separatorUid = null;
+  if (insertLineBeforeFootnotes) {
+    const pageChildren = getPageTreeFromAnyBlockUid(anyUid);
+    // Find the header in the page children to get its order
+    const headerEntry = pageChildren.find((b) => b.uid === headerUid);
+    if (headerEntry) {
+      const sep = pageChildren.find(
+        (b) => b.order === headerEntry.order - 1 && b.string === "---",
+      );
+      if (sep) separatorUid = sep.uid;
+    }
+  }
+  await deleteBlock(headerUid);
+  if (separatorUid) await deleteBlock(separatorUid);
 }
 
 async function removeFootNoteFromBlock(uid, content, noteIndex, removeAll) {
@@ -869,6 +898,9 @@ export default {
     document.removeEventListener("keydown", onKeyDown);
     window.roamAlphaAPI.ui.blockRefContextMenu.removeCommand({
       label: "Delete footnote",
+    });
+    window.roamAlphaAPI.ui.msContextMenu.removeCommand({
+      label: "Delete footnotes",
     });
     console.log("Footnotes unloaded");
   },

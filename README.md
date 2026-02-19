@@ -32,7 +32,7 @@ Select, in the main text, the number of the note (the selection can be overflowi
 
 How it works:
 
-- the note block will be deleted,
+- the note block will be deleted (and the whole #footnotes section if there is no more footnotes)
 - if there was some content in the note block, it will be inserted in the text body, in place of the alias, or you can choose to replace the alias by the note number in brackets (better for exporting) and keep the note block (see option in settings),
 - all following notes on the page are automatically renumbered.
 
