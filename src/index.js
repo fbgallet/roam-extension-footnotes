@@ -538,11 +538,15 @@ function installAcKeyHandler(uid) {
   acUid = uid;
   footnoteButtonSelected = false;
   acKeyHandler = function (e) {
-    const ac = document.getElementsByClassName("rm-autocomplete__results")[0];
-    if (!ac) {
+    const acRoot = document.getElementsByClassName(
+      "rm-autocomplete__results",
+    )[0];
+    if (!acRoot) {
       removeAcKeyHandler();
       return;
     }
+    const ac =
+      acRoot.querySelector(".rm-autocomplete__results-scroll") || acRoot;
     if (e.key === "ArrowUp") {
       if (footnoteButtonSelected) {
         // Already on our button — let it pass so Roam does nothing visible
@@ -610,17 +614,29 @@ function setAutocompleteObserver() {
   )[0];
   if (!blockAutocomplete) return;
 
+  // Check if this is a block search autocomplete (not page search)
+  const footerTitle = blockAutocomplete.querySelector(
+    ".rm-autocomplete-footer__title",
+  );
+  if (!footerTitle || !footerTitle.textContent.includes("Block search")) return;
+
+  // Insert into the scroll container (new Roam structure)
+  const scrollContainer = blockAutocomplete.querySelector(
+    ".rm-autocomplete__results-scroll",
+  );
+  if (!scrollContainer) return;
+
   let uid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
   noteInline = getInlineNote();
   if (noteInline.content.length === 0) return;
 
-  let hasCreateNoteItem = blockAutocomplete.querySelector(".create-footnote");
+  let hasCreateNoteItem = scrollContainer.querySelector(".create-footnote");
   if (hasCreateNoteItem !== null) {
-    if (hasCreateNoteItem.parentNode === blockAutocomplete) {
-      blockAutocomplete.removeChild(hasCreateNoteItem);
+    if (hasCreateNoteItem.parentNode === scrollContainer) {
+      scrollContainer.removeChild(hasCreateNoteItem);
     }
   }
-  footnoteButton = blockAutocomplete.insertAdjacentElement(
+  footnoteButton = scrollContainer.insertAdjacentElement(
     "afterbegin",
     createFootnoteButton(noteInline.content),
   );
