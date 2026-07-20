@@ -1,3 +1,16 @@
+## v.6 (July, 2026)
+
+### New features
+
+- Named footnotes: a note can keep a textual marker instead of a number, either by typing `[^label]` (or `[^label: note text]`) and running the insert command on it, or with `((^label: note text))` in the block reference autocomplete. They are never renumbered and are listed after the numbered notes, in order of appearance.
+- A named footnote can be cited several times: a label already in use points to the existing note, which is only deleted along with its last citation.
+- Option to repeat the label at the beginning of a named note, so it can be told apart in the numbered list of footnotes (enabled by default).
+- 'Footnotes: Convert Markdown footnotes on current page' command: converts `[^label]` references and `[^label]: ...` definitions of a pasted Markdown document into footnotes, moving each definition (and its indented paragraphs) into the footnotes section.
+
+### Fixes
+
+- 'Delete all footnotes' no longer rewrites every block of the page, only those actually holding a footnote
+
 ## v.5 (February, 2026)
 
 ### New features

@@ -4,7 +4,12 @@
 
 ![image](https://user-images.githubusercontent.com/74436347/189387081-fbb7ef64-5fde-441b-97c4-0bc7bae3e520.png)
 
-### [See changelog here for an overview of updates and new features](https://github.com/fbgallet/roam-extension-footnotes/blob/main/CHANGELOG.md) 🆕
+## 🆕 New in v.6 (July 2026):
+
+- **[Named footnotes](#named-footnotes)**: a note can keep a textual marker, `(bignote)`, instead of a number. Type `[^bignote]` (or `[^bignote: the note text]`) and run the insert command on it, or use `((^bignote: the note text))` in the autocomplete popup. Named notes are never renumbered, are listed after the numbered ones, and the same one can be cited as many times as you like.
+- **[Markdown footnotes conversion](#convert-markdown-footnotes)**: the `Footnotes: Convert Markdown footnotes on current page` command turns a pasted document using `[^1]` references and `[^1]: ...` definitions into real footnotes, moving each definition (and its indented paragraphs) into the footnotes section.
+
+### [See changelog here for an overview of updates and new features](https://github.com/fbgallet/roam-extension-footnotes/blob/main/CHANGELOG.md)
 
 ## Insert a footnote
 
@@ -25,6 +30,44 @@ How it works:
 - all following notes on the page are automatically renumbered.
 
 You can customize hotkeys for `Footnotes: Insert or remove footnote at current position` command, just like any other command from the command palette, either by searching for "footnotes hotkey" in the command palette, or at the bottom of the extension settings.
+
+## Named footnotes
+
+A footnote doesn't have to be numbered: it can keep a textual marker, like `(bignote)`, which never changes. Two ways to create one:
+
+1. Type `[^bignote]` in your text, place the cursor on it and run the usual insert command (or hotkeys): the reference is replaced by an alias keeping `bignote` as its marker. You can write the note at the same time with `[^bignote: the note text]`.
+2. Type `((^bignote: the note text))` — or just `((^bignote))` for an empty note — and choose the "Create as footnote named (bignote)" option in the autocomplete popup.
+
+The `^` is required (it's the Markdown convention for footnotes): without it, `[bignote]` would be indistinguishable from a page reference or from the first half of a `[text](url)` link.
+
+**A name designates one single note.** If `bignote` is already used on the page, a new `[^bignote]` doesn't create a second note: it cites the existing one. So you can refer to the same footnote as many times as you like. Deleting one of those citations only removes the alias; the note itself is deleted when its last citation goes.
+
+Named footnotes never take part in the automatic numbering: inserting or deleting one leaves the numbers of the other notes untouched, and a numbered note inserted next to one ignores it. In the #footnotes section, they are listed after all the numbered notes, in their order of appearance in the page.
+
+Since that section is displayed as a numbered list, a named note would show up as a meaningless "4.". Its label is therefore repeated at the beginning of the note itself (`bignote: the note text`) — this can be disabled in the settings. It is removed again if the note content goes back into the text when you delete the footnote.
+
+A purely numeric marker (`[^1]`, `((^2: ...))`) is what Markdown uses for an ordinary footnote, so it joins the automatic numbering instead of being kept as a name.
+
+## Convert Markdown footnotes
+
+If you paste text using [Markdown footnotes](https://www.markdownguide.org/extended-syntax/#footnotes), run `Footnotes: Convert Markdown footnotes on current page` to convert the whole page at once:
+
+```
+Here's a simple footnote,[^1] and here's a longer one.[^bignote]
+
+[^1]: This is the first footnote.
+
+[^bignote]: Here's one with multiple paragraphs and code.
+
+    Indent paragraphs to include them in the footnote.
+```
+
+How it works:
+
+- each `[^label]` reference becomes a footnote alias: numbered if the label is a number, named (see above) otherwise. A label already used by a named note on the page points to that note instead of duplicating it,
+- each `[^label]: ...` definition block is _moved_ under the #footnotes header, with the `[^label]: ` prefix removed. Its children (the indented paragraphs of the Markdown footnote) come along with it, and its block references stay valid since the block itself is preserved,
+- footnotes already present on the page are taken into account: everything ends up numbered in a single continuous sequence, in reading order,
+- a reference without a matching definition gets an empty note to fill in later, and a definition that is never cited is left untouched where it is. Both are reported in the notification at the end of the conversion.
 
 ## Delete a footnote
 
